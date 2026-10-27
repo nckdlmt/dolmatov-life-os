@@ -13,6 +13,14 @@ function cloudConfig() {
 
 function setSyncState(state, label) {
   document.body.dataset.cloudState = state;
+  const storageLabel = document.querySelector(".local-status > span:last-child");
+  if (storageLabel) {
+    storageLabel.textContent = state === "local"
+      ? "Данные пока локальные"
+      : state === "synced"
+        ? "Данные синхронизированы"
+        : label;
+  }
   const button = document.querySelector("#syncButton");
   if (!button) return;
   button.dataset.cloudState = state;
