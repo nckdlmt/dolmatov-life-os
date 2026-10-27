@@ -171,7 +171,24 @@ export async function createCloudSync({ structureVersion, localSnapshot }) {
   }
 
   let remoteSnapshot = savedRow?.snapshot || null;
-  if (!remoteSnapshot && localSnapshot) {
+  const restoreLocal = new URLSearchParams(window.location.search).get("restore-local") === "1";
+  if (restoreLocal && localSnapshot) {
+    const parsedSnapshot = typeof localSnapshot === "string" ? JSON.parse(localSnapshot) : localSnapshot;
+    const directionNames = new Set((parsedSnapshot.taxonomy || []).map((item) => item?.name));
+    const expectedDirections = ["ЛЮБОВЬ", "ПРАЙМ", "ФИЗИО", "OTHER"];
+    if (!expectedDirections.every((name) => directionNames.has(name))) {
+      setSyncState("error", "Локальная актуальная структура не найдена");
+      throw new Error("Local restore stopped: expected directions were not found");
+    }
+    const { error: restoreError } = await client.from("owner_state").upsert({
+      owner_id: ownerId,
+      snapshot: parsedSnapshot,
+      structure_version: structureVersion,
+      updated_at: new Date().toISOString()
+    });
+    if (restoreError) throw restoreError;
+    remoteSnapshot = parsedSnapshot;
+  } else if (!remoteSnapshot && localSnapshot) {
     const parsedSnapshot = typeof localSnapshot === "string" ? JSON.parse(localSnapshot) : localSnapshot;
     const { error: importError } = await client.from("owner_state").upsert({
       owner_id: ownerId,
