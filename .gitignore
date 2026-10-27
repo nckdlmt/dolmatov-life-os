@@ -5,3 +5,4 @@ node_modules/
 .env.*
 !cloud-config.js
 /*.png
+/assets/account-dolmatov-nikita.png

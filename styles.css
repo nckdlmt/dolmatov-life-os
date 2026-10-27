@@ -4592,6 +4592,20 @@ button.checkbox {
   object-fit: cover;
 }
 
+.utility-avatar-monogram {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
 .utility-nav,
 .utility-footer {
   display: grid;
