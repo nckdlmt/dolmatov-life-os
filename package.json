@@ -1,0 +1,16 @@
+{
+  "name": "dolmatov-life-os",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:vendor": "mkdir -p vendor && esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --minify --outfile=vendor/supabase.js",
+    "check": "node --check app.js && node --check cloud-sync.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.76.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.11"
+  }
+}

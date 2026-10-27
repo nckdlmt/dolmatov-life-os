@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dolmatov Life OS</title>
+    <link rel="stylesheet" href="./styles.css?v=life-os-medeo-20261027-2" />
+  </head>
+  <body>
+    <!--
+      THESIS: Radiance is one continuous life workspace; it refuses dashboard navigation that hides hierarchy or interrupts editing with modal layers.
+      OWN-WORLD: quiet white work surfaces, hairline dividers, berry brand accents, pastel direction states, compact monochrome controls, and persistent spatial panels.
+      STORY: choose a command, keep the life hierarchy visible, work in the center, and edit the selected goal or thought in the right pane.
+      FIRST VIEWPORT: 64px command rail, 280px Radiance tree, flexible working canvas, and 390px object editor; creation and summaries live on Today while search opens above the workspace.
+      FORM: reference-pinned four-level desktop workspace, first-ranked for repeated operation; seed key reference-pinned-radiance-four-pane.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+    -->
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7h-5V2M4 17h5v5M5.1 9A8 8 0 0 1 18 5l2 2M18.9 15A8 8 0 0 1 6 19l-2-2" /></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4M12 18h.01" /></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.5A7 7 0 0 1 12 3Z" /></symbol>
+    </svg>
+    <div class="app-shell">
+      <aside class="utility-rail" aria-label="Команды">
+        <div class="utility-avatar utility-avatar-static">
+          <img src="./assets/account-dolmatov-nikita.png" width="38" height="38" decoding="async" alt="Долматов Никита" />
+        </div>
+        <nav class="utility-nav" aria-label="Основные разделы">
+          <button class="utility-button nav-item active" data-view="today" type="button" aria-label="Сегодня" title="Сегодня"><svg><use href="#i-check" /></svg></button>
+          <button class="utility-button utility-create" id="quickCaptureButton" type="button" aria-label="Быстрая запись" title="Быстрая запись" aria-expanded="false" aria-controls="quickCaptureLayer"><svg><use href="#i-plus" /></svg></button>
+          <button class="utility-button nav-item" data-view="calendar" type="button" aria-label="Календарь" title="Календарь"><svg><use href="#i-calendar" /></svg></button>
+          <button class="utility-button" id="searchButton" type="button" aria-label="Поиск" title="Поиск"><svg><use href="#i-search" /></svg></button>
+        </nav>
+        <div class="utility-footer">
+          <button class="utility-button" type="button" aria-label="Синхронизация" title="Синхронизация"><svg><use href="#i-refresh" /></svg></button>
+          <button class="utility-button" type="button" aria-label="Уведомления" title="Уведомления"><svg><use href="#i-bell" /></svg></button>
+          <button class="utility-button" type="button" aria-label="Помощь" title="Помощь"><svg><use href="#i-help" /></svg></button>
+          <button class="utility-button" id="themeToggle" type="button" aria-label="Сменить тему" title="Сменить тему"><svg><use href="#i-theme" /></svg></button>
+        </div>
+      </aside>
+
+      <aside class="sidebar hierarchy-sidebar" aria-label="Структура Dolmatov Life OS">
+        <div class="project-logo">Dolmatov Life OS</div>
+
+        <div class="side-section">
+          <div class="side-title" id="sideTitle" hidden></div>
+          <div class="side-initiative-list" id="sideInitiatives"></div>
+        </div>
+
+        <div class="sidebar-footer">
+          <span class="local-status"><span class="status-dot"></span><span>Данные пока локальные</span></span>
+        </div>
+      </aside>
+
+      <div class="workspace-shell">
+        <main class="main">
+        <section class="view active" id="view-today">
+          <header class="today-header">
+            <h1 id="pageTitle">Сегодня</h1>
+            <p id="topEyebrow"></p>
+          </header>
+          <section class="today-goals-stream" aria-label="Цели на сегодня">
+            <div class="goal-list" id="goalList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-calendar">
+          <div class="calendar-shell">
+            <div class="calendar-toolbar">
+              <div class="calendar-actions">
+                <h2 id="calendarTitle">Календарь</h2>
+                <div class="calendar-nav-group">
+                  <button class="icon-button calendar-arrow" id="prevCalendar" aria-label="Назад">‹</button>
+                  <button class="secondary-action" id="todayCalendar">Сегодня</button>
+                  <button class="icon-button calendar-arrow" id="nextCalendar" aria-label="Вперед">›</button>
+                </div>
+                <label class="calendar-mode-select" for="calendarModeSelect">
+                  <select id="calendarModeSelect">
+                    <option value="day">День</option>
+                    <option value="three">3 дня</option>
+                    <option value="seven" selected>Неделя</option>
+                    <option value="week">Месяц</option>
+                    <option value="year">Год</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="calendar-layout">
+              <section class="calendar-main panel">
+                <div id="calendarCanvas"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-initiatives">
+          <section class="initiative-detail" id="initiativeDetail"></section>
+        </section>
+
+        <section class="view" id="view-health">
+          <div class="section-title">
+            <p class="eyebrow">Здоровье</p>
+            <h2>Метрики, анализы и состояние</h2>
+          </div>
+          <div class="health-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Ключевые показатели</h2>
+                <span class="tag good">стабильно</span>
+              </div>
+              <div class="vitals" id="vitals"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Анализы</h2>
+                <button class="secondary-action small">+ Файл</button>
+              </div>
+              <div class="lab-list" id="labList"></div>
+            </section>
+          </div>
+        </section>
+
+        </main>
+
+        <aside class="detail-pane" id="detailPane" aria-label="Редактор">
+          <div class="detail-pane-content" id="detailPaneContent">
+            <div class="detail-pane-empty" aria-hidden="true"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="quick-capture-layer" id="quickCaptureLayer" hidden>
+      <button class="quick-capture-dismiss" type="button" data-close-quick-capture aria-label="Закрыть быстрый ввод"></button>
+      <section class="quick-capture-bubble" id="quickInput" role="dialog" aria-modal="false" aria-labelledby="quickCaptureTitle">
+        <header class="quick-capture-header">
+          <h2 id="quickCaptureTitle">Быстрая запись</h2>
+          <button class="icon-button" type="button" data-close-quick-capture aria-label="Закрыть">×</button>
+        </header>
+        <textarea id="voiceText" rows="1" aria-label="Быстрая запись" placeholder="Мысль, событие, цель или план"></textarea>
+        <div class="ingest-actions">
+          <button class="icon-button text-button mic" id="micButton" type="button" title="Диктовка" aria-label="Диктовка">Rec</button>
+          <button class="primary-action" id="parseButton" type="button">Разобрать</button>
+          <button class="secondary-action" id="clearButton" type="button">Очистить</button>
+        </div>
+        <div class="parsed-output" id="parsedOutput" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <div class="search-layer" id="searchLayer" hidden>
+      <button class="search-backdrop" type="button" data-close-search aria-label="Закрыть поиск"></button>
+      <section class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="searchTitle">
+        <div class="search-field">
+          <svg aria-hidden="true"><use href="#i-search" /></svg>
+          <input id="globalSearchInput" type="search" autocomplete="off" placeholder="Поиск" aria-label="Поиск по Dolmatov Life OS" />
+          <button class="icon-button" type="button" data-close-search aria-label="Закрыть">×</button>
+        </div>
+        <h2 class="sr-only" id="searchTitle">Поиск</h2>
+        <div class="search-results" id="searchResults"></div>
+      </section>
+    </div>
+
+    <script src="./cloud-config.js?v=dolmatov-cloud-20261027-1"></script>
+    <script type="module" src="./app.js?v=dolmatov-cloud-20261027-1"></script>
+  </body>
+</html>
