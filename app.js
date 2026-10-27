@@ -1,4 +1,4 @@
-import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-2";
+import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-3";
 
 const activitiesByInitiative = {
   "Внимание телу": ["Спорт", "Массаж", "Прогулка", "Сауна"],

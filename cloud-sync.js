@@ -1,6 +1,7 @@
 import { createClient } from "./vendor/supabase.js";
 
 const AUTH_OVERLAY_ID = "dolmatovCloudAuth";
+const PASSWORD_OVERLAY_ID = "dolmatovPasswordSetup";
 
 function cloudConfig() {
   const config = window.DOLMATOV_CLOUD_CONFIG || {};
@@ -92,6 +93,56 @@ function waitForOwnerSession(client) {
   });
 }
 
+function ensureOwnerPassword(client, session) {
+  if (session.user.user_metadata?.has_owner_password) return Promise.resolve(session);
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.id = PASSWORD_OVERLAY_ID;
+    overlay.className = "cloud-auth-layer";
+    overlay.innerHTML = `
+      <section class="cloud-auth-card" role="dialog" aria-modal="true" aria-labelledby="cloudPasswordTitle">
+        <div class="cloud-auth-brand">Dolmatov Life OS</div>
+        <h1 id="cloudPasswordTitle">Создайте пароль</h1>
+        <p>Он понадобится для входа с телефона и других устройств.</p>
+        <form id="cloudPasswordForm">
+          <label><span>Новый пароль</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label><span>Повторите пароль</span><input name="confirmation" type="password" autocomplete="new-password" minlength="8" required></label>
+          <div class="cloud-auth-error" id="cloudPasswordError" aria-live="polite"></div>
+          <button class="primary-action" type="submit">Сохранить пароль</button>
+        </form>
+      </section>`;
+    document.body.append(overlay);
+    const form = overlay.querySelector("#cloudPasswordForm");
+    const errorHost = overlay.querySelector("#cloudPasswordError");
+    const submit = form.querySelector('button[type="submit"]');
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorHost.textContent = "";
+      const data = new FormData(form);
+      const password = String(data.get("password") || "");
+      if (password !== String(data.get("confirmation") || "")) {
+        errorHost.textContent = "Пароли не совпадают.";
+        return;
+      }
+      submit.disabled = true;
+      submit.textContent = "Сохраняем…";
+      const { error } = await client.auth.updateUser({
+        password,
+        data: { ...session.user.user_metadata, has_owner_password: true }
+      });
+      if (error) {
+        submit.disabled = false;
+        submit.textContent = "Сохранить пароль";
+        errorHost.textContent = "Не удалось сохранить пароль. Используйте не менее 8 символов.";
+        return;
+      }
+      const { data: refreshed } = await client.auth.getSession();
+      overlay.remove();
+      resolve(refreshed.session || session);
+    });
+  });
+}
+
 export async function createCloudSync({ structureVersion, localSnapshot }) {
   const config = cloudConfig();
   if (!config.url || !config.publishableKey) {
@@ -104,7 +155,8 @@ export async function createCloudSync({ structureVersion, localSnapshot }) {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   });
   let { data: sessionData } = await client.auth.getSession();
-  const session = sessionData.session || await waitForOwnerSession(client);
+  const signedInSession = sessionData.session || await waitForOwnerSession(client);
+  const session = await ensureOwnerPassword(client, signedInSession);
   const ownerId = session.user.id;
 
   const { data: savedRow, error: readError } = await client
