@@ -6753,6 +6753,10 @@ html[data-theme="dark"] {
   margin-top: 4px;
 }
 
+.cloud-auth-card .cloud-magic-link {
+  min-height: 42px;
+}
+
 .cloud-auth-error {
   min-height: 18px;
   color: #c94848;

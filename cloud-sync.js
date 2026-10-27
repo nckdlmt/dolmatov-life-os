@@ -32,9 +32,10 @@ function authOverlay() {
       <p>Ваши дела и база знаний синхронизируются между устройствами.</p>
       <form id="cloudAuthForm">
         <label><span>Почта</span><input name="email" type="email" autocomplete="username" required></label>
-        <label><span>Пароль</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <label><span>Пароль</span><input name="password" type="password" autocomplete="current-password"></label>
         <div class="cloud-auth-error" id="cloudAuthError" aria-live="polite"></div>
         <button class="primary-action" type="submit">Войти</button>
+        <button class="secondary-action cloud-magic-link" type="button">Получить ссылку на почту</button>
       </form>
     </section>`;
   document.body.append(overlay);
@@ -47,6 +48,7 @@ function waitForOwnerSession(client) {
     const form = overlay.querySelector("#cloudAuthForm");
     const errorHost = overlay.querySelector("#cloudAuthError");
     const submit = form.querySelector('button[type="submit"]');
+    const magicLink = form.querySelector(".cloud-magic-link");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       errorHost.textContent = "";
@@ -65,6 +67,27 @@ function waitForOwnerSession(client) {
       }
       overlay.remove();
       resolve(authData.session);
+    });
+    magicLink.addEventListener("click", async () => {
+      errorHost.textContent = "";
+      const email = String(new FormData(form).get("email") || "").trim();
+      if (!email) {
+        errorHost.textContent = "Укажите почту.";
+        form.elements.email.focus();
+        return;
+      }
+      magicLink.disabled = true;
+      magicLink.textContent = "Отправляем…";
+      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await client.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectUrl }
+      });
+      magicLink.disabled = false;
+      magicLink.textContent = "Получить ссылку на почту";
+      errorHost.textContent = error
+        ? "Не удалось отправить ссылку. Проверьте почту."
+        : "Ссылка отправлена. Откройте письмо на этом устройстве.";
     });
   });
 }
