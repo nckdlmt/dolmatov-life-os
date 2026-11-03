@@ -4345,6 +4345,32 @@ function openSearchResult(kind, id) {
 }
 
 function bindNavigation() {
+  const setMobileMenuOpen = (open) => {
+    document.body.classList.toggle('mobile-menu-open', open);
+    qs('#mobileMenuToggle').setAttribute('aria-expanded', String(open));
+    qs('#mobileMenuBackdrop').hidden = !open;
+    if (open) qs('#mobileMenuClose').focus();
+    else qs('#mobileMenuToggle').focus();
+  };
+  qs('#mobileMenuToggle').addEventListener('click', () => setMobileMenuOpen(!document.body.classList.contains('mobile-menu-open')));
+  qs('#mobileMenuClose').addEventListener('click', () => setMobileMenuOpen(false));
+  qs('#mobileMenuBackdrop').addEventListener('click', () => setMobileMenuOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.classList.contains('mobile-menu-open')) setMobileMenuOpen(false);
+    if (event.key === 'Tab' && document.body.classList.contains('mobile-menu-open')) {
+      const controls = [...qs('#hierarchySidebar').querySelectorAll('button, input, select')].filter(node => node.getBoundingClientRect().height && !node.disabled);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  });
+  qs('#mobileAddTask').addEventListener('click', () => {
+    if (document.body.classList.contains('mobile-menu-open')) setMobileMenuOpen(false);
+    openTodayComposer('goal');
+  });
+  qs('#mobileSearch').addEventListener('click', openSearch);
+  qs('#mobileTheme').addEventListener('click', () => qs('#themeToggle').click());
   qsa(".nav-item[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       activateView(button.dataset.view);

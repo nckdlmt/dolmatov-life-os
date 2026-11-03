@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dolmatov Life OS</title>
-    <link rel="stylesheet" href="./styles.css?v=dolmatov-mobile-tree-20261103-1" />
+    <link rel="stylesheet" href="./styles.css?v=dolmatov-mobile-nav-20261103-1" />
   </head>
   <body>
     <!--
@@ -44,7 +44,10 @@
         </div>
       </aside>
 
-      <aside class="sidebar hierarchy-sidebar" aria-label="Структура Dolmatov Life OS">
+      <button class="mobile-menu-toggle" id="mobileMenuToggle" type="button" aria-label="Открыть меню направлений" aria-expanded="false" aria-controls="hierarchySidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button class="mobile-menu-backdrop" id="mobileMenuBackdrop" type="button" aria-label="Закрыть меню направлений" hidden></button>
+      <aside class="sidebar hierarchy-sidebar" id="hierarchySidebar" aria-label="Структура Dolmatov Life OS">
+        <div class="mobile-drawer-header"><span>Направления</span><button id="mobileMenuClose" type="button" aria-label="Закрыть меню направлений">×</button></div>
         <div class="project-logo">Dolmatov Life OS</div>
 
         <div class="side-section">
@@ -166,7 +169,14 @@
       </section>
     </div>
 
+    <button class="mobile-add-task" id="mobileAddTask" type="button" aria-label="Добавить задачу"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+    <nav class="mobile-bottom-nav" aria-label="Мобильная навигация">
+      <button class="nav-item active" data-view="today" type="button" aria-label="Сегодня"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Сегодня</span></button>
+      <button class="nav-item" data-view="calendar" type="button" aria-label="Календарь"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>Календарь</span></button>
+      <button id="mobileSearch" type="button" aria-label="Поиск"><svg aria-hidden="true"><use href="#i-search"/></svg><span>Поиск</span></button>
+      <button id="mobileTheme" type="button" aria-label="Сменить тему"><svg aria-hidden="true"><use href="#i-theme"/></svg><span>Тема</span></button>
+    </nav>
     <script src="./cloud-config.js?v=dolmatov-cloud-20261027-1"></script>
-    <script type="module" src="./app.js?v=dolmatov-mobile-tree-20261103-2"></script>
+    <script type="module" src="./app.js?v=dolmatov-mobile-nav-20261103-1"></script>
   </body>
 </html>
