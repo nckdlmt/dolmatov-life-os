@@ -1422,7 +1422,7 @@ function handleSidebarSelection(button) {
     state.openAreaId = areaId;
     state.selectedInitiativeId = initiativeId;
     state.selectedActivityId = null;
-    state.openInitiativeId = null;
+    state.openInitiativeId = selectedInitiative?.parentInitiativeId || null;
   }
 
   state.activeView = "initiatives";
