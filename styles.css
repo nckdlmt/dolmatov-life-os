@@ -6989,3 +6989,87 @@ html[data-theme="dark"] {
     font-size: 12px;
   }
 }
+
+/* Mobile navigation keeps the hierarchy visible and independently scrollable. */
+@media (max-width: 900px) {
+  body[data-active-view="today"] .hierarchy-sidebar.sidebar,
+  body[data-active-view="initiatives"] .hierarchy-sidebar.sidebar {
+    position: relative;
+    inset: auto;
+    height: auto;
+    padding: 12px;
+  }
+
+  .hierarchy-sidebar .side-section {
+    height: auto;
+    max-height: 45dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  body .hierarchy-sidebar .side-initiative-list,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-initiative-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    height: auto;
+    gap: 6px;
+  }
+
+  body .hierarchy-sidebar .side-area-group,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-area-group {
+    display: block;
+    width: 100%;
+  }
+
+  body .hierarchy-sidebar .side-area-group > .side-entity-line {
+    width: 100%;
+    margin: 0;
+    grid-row: auto;
+  }
+
+  body .hierarchy-sidebar .side-initiative-children,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-initiative-children {
+    display: grid !important;
+    grid-column: auto;
+    grid-row: auto;
+    gap: 5px;
+    width: 100%;
+    padding: 6px 0 0 10px;
+    overflow: visible;
+  }
+
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-initiative-node {
+    display: grid;
+    width: 100%;
+    gap: 5px;
+  }
+
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-initiative-node > .side-entity-line,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-activity-node {
+    width: 100%;
+  }
+
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-activity-children {
+    display: grid !important;
+    width: calc(100% - 10px);
+    margin-left: 10px;
+    padding-left: 8px;
+    border-left: 1px solid var(--line);
+    gap: 5px;
+  }
+
+  body .hierarchy-sidebar .side-area-button,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-initiative-button,
+  body[data-active-view="initiatives"] .hierarchy-sidebar .side-activity-button {
+    width: 100%;
+    min-height: 44px;
+    text-align: left;
+  }
+
+  body[data-active-view="today"] .main,
+  body[data-active-view="initiatives"] .main {
+    padding-top: 20px;
+  }
+}

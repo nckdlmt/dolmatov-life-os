@@ -4374,8 +4374,16 @@ function bindNavigation() {
     const startX = event.clientX;
     const startY = event.clientY;
     const pointerId = event.pointerId;
+    const isTouch = event.pointerType === "touch";
+    const startedAt = Date.now();
+    const scrollHost = sideInitiatives.closest('.side-section');
+    let previousY = startY;
+    let scrolled = false;
+    let hoverId = null;
+    let hoverTimer = null;
 
     const clearPointerDrag = () => {
+      window.clearTimeout(hoverTimer);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);
       window.removeEventListener("pointercancel", cancel);
@@ -4383,21 +4391,54 @@ function bindNavigation() {
       qsa(".taxonomy-item.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
       clearTaxonomyDropIndicators();
       pointerInitiativeDrag = null;
-      if (item.hasPointerCapture(pointerId)) item.releasePointerCapture(pointerId);
+      if (sideInitiatives.hasPointerCapture(pointerId)) sideInitiatives.releasePointerCapture(pointerId);
     };
 
     const move = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId || !pointerInitiativeDrag) return;
       const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (isTouch && !pointerInitiativeDrag.active && (scrolled || Date.now() - startedAt < 320)) {
+        if (distance >= 6) {
+          scrolled = true;
+          if (scrollHost) scrollHost.scrollTop += previousY - moveEvent.clientY;
+          suppressTaxonomyClickUntil = Date.now() + 350;
+          moveEvent.preventDefault();
+        }
+        previousY = moveEvent.clientY;
+        return;
+      }
       if (!pointerInitiativeDrag.active && distance < 6) return;
       if (!pointerInitiativeDrag.active) {
         pointerInitiativeDrag.active = true;
-        item.setPointerCapture(pointerId);
+        sideInitiatives.setPointerCapture(pointerId);
         item.classList.add("is-dragging");
         document.body.classList.add("taxonomy-pointer-dragging");
       }
       moveEvent.preventDefault();
       const targetItem = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest(".taxonomy-item");
+      if (scrollHost) {
+        const bounds = scrollHost.getBoundingClientRect();
+        if (moveEvent.clientY < bounds.top + 30) scrollHost.scrollTop -= 14;
+        if (moveEvent.clientY > bounds.bottom - 30) scrollHost.scrollTop += 14;
+      }
+      const targetId = targetItem?.dataset.taxonomyId;
+      if (hoverId !== targetId) {
+        window.clearTimeout(hoverTimer);
+        hoverId = targetId;
+        if (targetItem && targetId !== source.id) {
+          const kind = targetItem.dataset.taxonomyKind;
+          const shouldOpen = kind === 'direction' && state.openAreaId !== targetId
+            || kind === 'initiative' && targetItem.dataset.taxonomyContainer === 'true' && state.openInitiativeId !== targetId;
+          if (shouldOpen) hoverTimer = window.setTimeout(() => {
+            if (!pointerInitiativeDrag?.active) return;
+            if (kind === 'direction') {
+              state.openAreaId = targetId;
+              state.openInitiativeId = null;
+            } else state.openInitiativeId = targetId;
+            renderSidebarContext();
+          }, 650);
+        }
+      }
       clearTaxonomyDropIndicators();
       pointerInitiativeDrag.drop = targetItem
         ? markTaxonomyDropTarget(source, targetItem, moveEvent.clientY)
@@ -4411,9 +4452,10 @@ function bindNavigation() {
       const drop = pointerInitiativeDrag.drop;
       const targetItem = pointerInitiativeDrag.targetItem;
       clearPointerDrag();
-      if (!wasActive || !drop || !targetItem) return;
+      if (!wasActive) return;
       finishEvent.preventDefault();
       suppressTaxonomyClickUntil = Date.now() + 350;
+      if (!drop || !targetItem) return;
       reorderTaxonomyEntity(source, drop.target, drop.insertAfter, drop.dropInto);
     };
 
