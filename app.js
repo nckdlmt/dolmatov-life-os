@@ -5058,7 +5058,7 @@ function renderGoalWorkspaceHost() {
   const goal = state.goals.find((item) => item.id === state.openGoalId);
   const note = state.notes.find((item) => item.id === state.openNoteId);
   const scope = activeComposerScope();
-  const defaultInitiativeMode = state.activeView === "initiatives" && scope.areaId ? "goal" : null;
+  const defaultInitiativeMode = state.activeView === "initiatives" && scope.areaId && !window.matchMedia('(max-width: 900px)').matches ? "goal" : null;
   const composerMode = state.todayComposerMode || defaultInitiativeMode;
   const composerPanelOpen = ["today", "initiatives"].includes(state.activeView) && Boolean(composerMode);
   document.body.classList.toggle("has-open-object", Boolean(goal || note || composerPanelOpen));
