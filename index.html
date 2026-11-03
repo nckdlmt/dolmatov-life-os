@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dolmatov Life OS</title>
-    <link rel="stylesheet" href="./styles.css?v=dolmatov-mobile-nav-20261103-1" />
+    <link rel="stylesheet" href="./styles.css?v=dolmatov-mobile-calendar-search-20261103-1" />
   </head>
   <body>
     <!--
@@ -165,6 +165,7 @@
           <button class="icon-button" type="button" data-close-search aria-label="Закрыть">×</button>
         </div>
         <h2 class="sr-only" id="searchTitle">Поиск</h2>
+        <div class="search-filters" aria-label="Искать среди"><button type="button" data-search-filter="all" aria-pressed="true">Всё</button><button type="button" data-search-filter="goal" aria-pressed="false">Задачи</button><button type="button" data-search-filter="structure" aria-pressed="false">Направления</button><button type="button" data-search-filter="note" aria-pressed="false">Заметки</button></div>
         <div class="search-results" id="searchResults"></div>
       </section>
     </div>
@@ -177,6 +178,6 @@
       <button id="mobileTheme" type="button" aria-label="Сменить тему"><svg aria-hidden="true"><use href="#i-theme"/></svg><span>Тема</span></button>
     </nav>
     <script src="./cloud-config.js?v=dolmatov-cloud-20261027-1"></script>
-    <script type="module" src="./app.js?v=dolmatov-mobile-nav-20261103-1"></script>
+    <script type="module" src="./app.js?v=dolmatov-mobile-calendar-search-20261103-1"></script>
   </body>
 </html>

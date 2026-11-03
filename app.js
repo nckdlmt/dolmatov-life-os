@@ -2369,7 +2369,9 @@ function renderMonthEvent(event) {
 
 function renderYearCalendar() {
   const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-  qs("#calendarTitle").textContent = String(state.calendarAnchor.getFullYear());
+  const year = state.calendarAnchor.getFullYear();
+  const today = dateKey(getToday());
+  qs("#calendarTitle").textContent = String(year);
   qs("#calendarCanvas").innerHTML = `
     <div class="year-grid">
       ${months
@@ -2377,8 +2379,12 @@ function renderYearCalendar() {
           (month, monthIndex) => `
             <article class="year-month">
               <h3>${month}</h3>
-              <div class="year-dots">
-                ${Array.from({ length: 35 }, () => `<i></i>`).join("")}
+              <div class="year-days">
+                ${Array.from({ length: (new Date(year, monthIndex, 1).getDay() + 6) % 7 }, () => '<span aria-hidden="true"></span>').join('')}
+                ${Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, index) => {
+                  const key = dateKey(new Date(year, monthIndex, index + 1));
+                  return `<button type="button" data-year-date="${key}" class="${key === today ? 'is-today' : ''}" aria-label="${index + 1} ${month.toLocaleLowerCase('ru-RU')} ${year}" ${key === today ? 'aria-current="date"' : ''}>${index + 1}</button>`;
+                }).join('')}
               </div>
             </article>
           `
@@ -4259,9 +4265,10 @@ function searchableRadianceItems(query) {
 function renderSearchResults(query = "") {
   const host = qs("#searchResults");
   if (!host) return;
-  const items = searchableRadianceItems(query);
+  const filter = qs('#searchLayer').dataset.filter || 'all';
+  const items = searchableRadianceItems(query).filter(item => filter === 'all' || (filter === 'structure' ? ['direction', 'initiative', 'activity'].includes(item.kind) : item.kind === filter));
   if (!query.trim()) {
-    host.innerHTML = `<div class="search-empty"><svg aria-hidden="true"><use href="#i-search" /></svg><strong>Поиск по Radiance</strong><span>Цели, заметки и вся структура в одном месте.</span></div>`;
+    host.innerHTML = `<div class="search-empty"><svg aria-hidden="true"><use href="#i-search" /></svg><strong>Что вы хотите найти?</strong><span>Введите название задачи, заметки или инициативы.</span></div>`;
     return;
   }
   host.innerHTML = items.length
@@ -4277,6 +4284,7 @@ function closeSearch() {
   const layer = qs("#searchLayer");
   if (!layer) return;
   layer.hidden = true;
+  document.body.classList.remove('mobile-search-open');
   qs(".app-shell").removeAttribute("inert");
   qs("#globalSearchInput").value = "";
   renderSearchResults();
@@ -4290,6 +4298,7 @@ function openSearch() {
   searchReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : qs("#searchButton");
   qs(".app-shell").setAttribute("inert", "");
   layer.hidden = false;
+  document.body.classList.add('mobile-search-open');
   renderSearchResults();
   requestAnimationFrame(() => qs("#globalSearchInput").focus());
 }
@@ -4589,11 +4598,26 @@ function bindNavigation() {
   qs("#searchButton").addEventListener("click", openSearch);
   qs("#globalSearchInput").addEventListener("input", (event) => renderSearchResults(event.target.value));
   qs("#searchLayer").addEventListener("click", (event) => {
+    const filter = event.target.closest('[data-search-filter]');
+    if (filter) {
+      qs('#searchLayer').dataset.filter = filter.dataset.searchFilter;
+      qsa('[data-search-filter]').forEach(button => button.setAttribute('aria-pressed', String(button === filter)));
+      renderSearchResults(qs('#globalSearchInput').value);
+    }
     if (event.target.closest("[data-close-search]")) closeSearch();
     const result = event.target.closest("[data-search-kind]");
     if (result) openSearchResult(result.dataset.searchKind, result.dataset.searchId);
   });
   qs("#searchLayer").addEventListener("keydown", trapSearchFocus);
+  qs('#calendarCanvas').addEventListener('click', (event) => {
+    const day = event.target.closest('[data-year-date]');
+    if (!day) return;
+    const [year, month, date] = day.dataset.yearDate.split('-').map(Number);
+    state.calendarAnchor = new Date(year, month - 1, date);
+    state.calendarMode = 'day';
+    renderCalendar();
+    updatePageHeader();
+  });
   window.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
