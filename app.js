@@ -1308,9 +1308,9 @@ function renderSidebarContext() {
                       .filter((initiative) => !initiative.parentInitiativeId)
                       .map(
                         (initiative) => `
-                          <div class="side-initiative-node taxonomy-item" draggable="true" data-taxonomy-kind="initiative" data-taxonomy-id="${initiative.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${initiative.kind === "container" || initiative.activities.length > 0}">
+                          <div class="side-initiative-node taxonomy-item" draggable="false" data-taxonomy-kind="initiative" data-taxonomy-id="${initiative.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${initiative.kind === "container" || initiative.activities.length > 0}">
                             <div class="side-entity-line side-initiative-line">
-                              <button class="side-initiative-button ${initiative.id === state.selectedInitiativeId ? "active" : ""}" draggable="true" data-side-area="${area.id}" data-side-initiative="${initiative.id}" style="--side-color:${area.color}">
+                              <button class="side-initiative-button ${initiative.id === state.selectedInitiativeId ? "active" : ""}" draggable="false" data-side-area="${area.id}" data-side-initiative="${initiative.id}" style="--side-color:${area.color}">
                                 <span class="side-initiative-row"><span>${escapeHtml(initiative.name)}</span></span>
                               </button>
                               <span class="taxonomy-actions">
@@ -1338,8 +1338,8 @@ function renderSidebarContext() {
                                     .filter((child) => child.parentInitiativeId === initiative.id)
                                     .map(
                                       (child) => `
-                                        <div class="side-activity-node side-nested-initiative-node taxonomy-item" draggable="true" data-taxonomy-kind="initiative" data-taxonomy-id="${child.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${child.kind === "container" || child.activities.length > 0}">
-                                          <button class="side-activity-button ${child.id === state.selectedInitiativeId ? "active" : ""}" draggable="true" data-side-area="${area.id}" data-side-initiative="${child.id}" style="--side-color:${area.color}">
+                                        <div class="side-activity-node side-nested-initiative-node taxonomy-item" draggable="false" data-taxonomy-kind="initiative" data-taxonomy-id="${child.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${child.kind === "container" || child.activities.length > 0}">
+                                          <button class="side-activity-button ${child.id === state.selectedInitiativeId ? "active" : ""}" draggable="false" data-side-area="${area.id}" data-side-initiative="${child.id}" style="--side-color:${area.color}">
                                             <span>${escapeHtml(child.name)}</span>
                                           </button>
                                           <span class="taxonomy-actions"><button type="button" data-taxonomy-delete="initiative" data-entity-id="${child.id}" data-parent-id="${area.id}" aria-label="Удалить инициативу" title="Удалить">×</button></span>
@@ -4331,6 +4331,79 @@ function bindNavigation() {
   });
 
   const sideInitiatives = qs("#sideInitiatives");
+  let pointerInitiativeDrag = null;
+  let suppressTaxonomyClickUntil = 0;
+
+  sideInitiatives.addEventListener("click", (event) => {
+    if (Date.now() >= suppressTaxonomyClickUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  sideInitiatives.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest(".taxonomy-actions, .side-disclosure")) return;
+    const item = event.target.closest('.taxonomy-item[data-taxonomy-kind="initiative"]');
+    if (!item) return;
+
+    const source = {
+      kind: "initiative",
+      id: item.dataset.taxonomyId,
+      parentId: item.dataset.taxonomyParent || ""
+    };
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerId = event.pointerId;
+
+    const clearPointerDrag = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+      document.body.classList.remove("taxonomy-pointer-dragging");
+      qsa(".taxonomy-item.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+      clearTaxonomyDropIndicators();
+      pointerInitiativeDrag = null;
+    };
+
+    const move = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId || !pointerInitiativeDrag) return;
+      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!pointerInitiativeDrag.active && distance < 6) return;
+      if (!pointerInitiativeDrag.active) {
+        pointerInitiativeDrag.active = true;
+        item.classList.add("is-dragging");
+        document.body.classList.add("taxonomy-pointer-dragging");
+      }
+      moveEvent.preventDefault();
+      const targetItem = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest(".taxonomy-item");
+      clearTaxonomyDropIndicators();
+      pointerInitiativeDrag.drop = targetItem
+        ? markTaxonomyDropTarget(source, targetItem, moveEvent.clientY)
+        : null;
+      pointerInitiativeDrag.targetItem = targetItem || null;
+    };
+
+    const finish = (finishEvent) => {
+      if (finishEvent.pointerId !== pointerId || !pointerInitiativeDrag) return;
+      const wasActive = pointerInitiativeDrag.active;
+      const drop = pointerInitiativeDrag.drop;
+      const targetItem = pointerInitiativeDrag.targetItem;
+      clearPointerDrag();
+      if (!wasActive || !drop || !targetItem) return;
+      finishEvent.preventDefault();
+      suppressTaxonomyClickUntil = Date.now() + 350;
+      reorderTaxonomyEntity(source, drop.target, drop.insertAfter, drop.dropInto);
+    };
+
+    const cancel = (cancelEvent) => {
+      if (cancelEvent.pointerId === pointerId) clearPointerDrag();
+    };
+
+    pointerInitiativeDrag = { active: false, drop: null, targetItem: null };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
+  });
+
   sideInitiatives.addEventListener("click", (event) => {
     const addButton = event.target.closest("[data-taxonomy-add]");
     if (addButton) {

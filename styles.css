@@ -504,6 +504,10 @@ h3 {
   opacity: 0.42;
 }
 
+body.taxonomy-pointer-dragging {
+  user-select: none;
+}
+
 .taxonomy-item.drop-before::before,
 .taxonomy-item.drop-after::after {
   content: "";
