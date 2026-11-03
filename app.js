@@ -4374,8 +4374,6 @@ function bindNavigation() {
     const startX = event.clientX;
     const startY = event.clientY;
     const pointerId = event.pointerId;
-    event.preventDefault();
-    item.setPointerCapture(pointerId);
 
     const clearPointerDrag = () => {
       window.removeEventListener("pointermove", move);
@@ -4394,6 +4392,7 @@ function bindNavigation() {
       if (!pointerInitiativeDrag.active && distance < 6) return;
       if (!pointerInitiativeDrag.active) {
         pointerInitiativeDrag.active = true;
+        item.setPointerCapture(pointerId);
         item.classList.add("is-dragging");
         document.body.classList.add("taxonomy-pointer-dragging");
       }
