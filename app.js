@@ -4133,6 +4133,20 @@ function nestInitiativeInContainer(source, targetInitiativeId) {
 
 function reorderTaxonomyEntity(source, target, insertAfter, dropInto = false) {
   if (!source || source.id === target.id) return;
+  if (source.kind === "activity" && ["direction", "initiative"].includes(target.kind)) {
+    const location = taxonomyActivityLocation(source.id);
+    if (!location) return;
+    const [activity] = location.initiative.activities.splice(location.index, 1);
+    const initiative = { ...activity, status: "инициатива", kind: "initiative", activities: [], parentInitiativeId: location.initiative.id };
+    location.area.initiatives.push(initiative);
+    [state.goals, state.events, state.recurringEvents, state.notes, state.habits, state.metrics]
+      .filter(Array.isArray).forEach((items) => items.forEach((item) => {
+        if (item.activityId !== initiative.id) return;
+        item.initiativeId = initiative.id;
+        item.activityId = null;
+      }));
+    source = { kind: "initiative", id: initiative.id, parentId: location.area.id };
+  }
   if (source.kind === "initiative") {
     if (target.kind === "direction") {
       moveInitiativeToArea(source, target.id);
@@ -4166,12 +4180,19 @@ function clearTaxonomyDropIndicators() {
 
 function markTaxonomyDropTarget(source, item, clientY) {
   if (!source || !item) return null;
+  if (source.kind === "activity" && item.dataset.taxonomyKind !== "activity") {
+    const location = taxonomyActivityLocation(source.id);
+    if (!location) return null;
+    source = { ...source, kind: "initiative", parentId: location.area.id, activityLocation: location };
+  }
   const target = {
     kind: item.dataset.taxonomyKind,
     id: item.dataset.taxonomyId,
     parentId: item.dataset.taxonomyParent || ""
   };
-  const sourceLocation = source.kind === "initiative" ? taxonomyInitiativeLocation(source.id) : null;
+  const sourceLocation = source.activityLocation
+    ? { area: source.activityLocation.area, initiative: { ...source.activityLocation.activity, kind: "initiative", activities: [], parentInitiativeId: source.activityLocation.initiative.id } }
+    : source.kind === "initiative" ? taxonomyInitiativeLocation(source.id) : null;
   const initiativeToDirection = canDropInitiativeOnDirection({
     sourceKind: source.kind,
     targetKind: target.kind,
@@ -4342,17 +4363,19 @@ function bindNavigation() {
 
   sideInitiatives.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || event.target.closest(".taxonomy-actions, .side-disclosure")) return;
-    const item = event.target.closest('.taxonomy-item[data-taxonomy-kind="initiative"]');
-    if (!item) return;
+    const item = event.target.closest('.taxonomy-item');
+    if (!item || !["initiative", "activity"].includes(item.dataset.taxonomyKind)) return;
 
     const source = {
-      kind: "initiative",
+      kind: item.dataset.taxonomyKind,
       id: item.dataset.taxonomyId,
       parentId: item.dataset.taxonomyParent || ""
     };
     const startX = event.clientX;
     const startY = event.clientY;
     const pointerId = event.pointerId;
+    event.preventDefault();
+    item.setPointerCapture(pointerId);
 
     const clearPointerDrag = () => {
       window.removeEventListener("pointermove", move);
@@ -4362,6 +4385,7 @@ function bindNavigation() {
       qsa(".taxonomy-item.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
       clearTaxonomyDropIndicators();
       pointerInitiativeDrag = null;
+      if (item.hasPointerCapture(pointerId)) item.releasePointerCapture(pointerId);
     };
 
     const move = (moveEvent) => {
@@ -4446,6 +4470,10 @@ function bindNavigation() {
   });
 
   sideInitiatives.addEventListener("dragstart", (event) => {
+    if (pointerInitiativeDrag || event.target.closest('[data-taxonomy-kind="initiative"], [data-taxonomy-kind="activity"]')) {
+      event.preventDefault();
+      return;
+    }
     const item = event.target.closest(".taxonomy-item");
     if (!item) return;
     draggedTaxonomyEntity = {

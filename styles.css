@@ -508,6 +508,13 @@ body.taxonomy-pointer-dragging {
   user-select: none;
 }
 
+.side-initiative-button,
+.side-activity-button {
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 .taxonomy-item.drop-before::before,
 .taxonomy-item.drop-after::after {
   content: "";
