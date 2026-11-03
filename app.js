@@ -1556,7 +1556,7 @@ function renderCalendar() {
   const grid = [
     `<div class="calendar-grid" style="--days:${days.length}">`,
     `<div class="calendar-head" style="grid-column:1; grid-row:1"></div>`,
-    ...days.map((day, dayIndex) => `<div class="calendar-head ${day.isToday ? "is-today" : ""}" style="grid-column:${dayIndex + 2}; grid-row:1"><strong>${day.date}</strong><span>${day.label}</span></div>`)
+    ...days.map((day, dayIndex) => `<div class="calendar-head ${day.isToday ? "is-today" : ""}" data-week-date="${day.key}" style="grid-column:${dayIndex + 2}; grid-row:1"><strong>${day.date}</strong><span>${day.label}</span></div>`)
   ];
 
   hours.forEach((hour) => {
@@ -1688,6 +1688,7 @@ function bindCalendarSlotSelection() {
   if (!grid) return;
 
   grid.addEventListener("pointerdown", (event) => {
+    if (state.calendarMode === 'seven') return;
     if (event.pointerType !== "mouse" || event.button !== 0 || event.target.closest(".calendar-event")) return;
     const slot = event.target.closest("[data-calendar-slot]");
     if (!slot) return;
@@ -2340,7 +2341,7 @@ function renderMonthCalendar() {
         ${days
           .map(
             (day) => `
-              <article class="month-day ${day.isCurrentMonth ? "" : "muted-month"} ${day.isToday ? "is-today" : ""}">
+              <article data-month-date="${day.key}" class="month-day ${day.isCurrentMonth ? "" : "muted-month"} ${day.isToday ? "is-today" : ""}">
                 <div class="month-day-number">${day.date.getDate()}</div>
                 <div class="month-events">
                   ${day.events.map((event) => renderMonthEvent(event)).join("")}
@@ -2377,7 +2378,7 @@ function renderYearCalendar() {
       ${months
         .map(
           (month, monthIndex) => `
-            <article class="year-month">
+            <article class="year-month" data-year-month="${dateKey(new Date(year, monthIndex, 1))}">
               <h3>${month}</h3>
               <div class="year-days">
                 ${Array.from({ length: (new Date(year, monthIndex, 1).getDay() + 6) % 7 }, () => '<span aria-hidden="true"></span>').join('')}
@@ -4610,11 +4611,23 @@ function bindNavigation() {
   });
   qs("#searchLayer").addEventListener("keydown", trapSearchFocus);
   qs('#calendarCanvas').addEventListener('click', (event) => {
-    const day = event.target.closest('[data-year-date]');
-    if (!day) return;
-    const [year, month, date] = day.dataset.yearDate.split('-').map(Number);
+    if (event.target.closest('.calendar-event, .month-event, [data-event-done]')) return;
+    let key;
+    let nextMode;
+    if (state.calendarMode === 'year') {
+      key = event.target.closest('[data-year-date]')?.dataset.yearDate || event.target.closest('[data-year-month]')?.dataset.yearMonth;
+      nextMode = 'week';
+    } else if (state.calendarMode === 'week') {
+      key = event.target.closest('[data-month-date]')?.dataset.monthDate;
+      nextMode = 'seven';
+    } else if (state.calendarMode === 'seven') {
+      key = event.target.closest('[data-week-date]')?.dataset.weekDate || event.target.closest('[data-calendar-date]')?.dataset.calendarDate;
+      nextMode = 'day';
+    }
+    if (!key) return;
+    const [year, month, date] = key.split('-').map(Number);
     state.calendarAnchor = new Date(year, month - 1, date);
-    state.calendarMode = 'day';
+    state.calendarMode = nextMode;
     renderCalendar();
     updatePageHeader();
   });
