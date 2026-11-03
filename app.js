@@ -1,4 +1,8 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
+import {
+  canDropInitiativeOnDirection,
+  canNestInitiativeInContainer
+} from "./taxonomy-drag.js?v=dolmatov-taxonomy-drag-20261103-1";
 
 const activitiesByInitiative = {
   "Внимание телу": ["Спорт", "Массаж", "Прогулка", "Сауна"],
@@ -4167,7 +4171,14 @@ function markTaxonomyDropTarget(source, item, clientY) {
     id: item.dataset.taxonomyId,
     parentId: item.dataset.taxonomyParent || ""
   };
-  const initiativeToDirection = source.kind === "initiative" && target.kind === "direction" && target.id !== source.parentId;
+  const sourceLocation = source.kind === "initiative" ? taxonomyInitiativeLocation(source.id) : null;
+  const initiativeToDirection = canDropInitiativeOnDirection({
+    sourceKind: source.kind,
+    targetKind: target.kind,
+    targetAreaId: target.id,
+    sourceAreaId: sourceLocation?.area.id,
+    parentInitiativeId: sourceLocation?.initiative.parentInitiativeId
+  });
   const initiativeToInitiative = source.kind === "initiative" && target.kind === "initiative" && target.id !== source.id;
   const reorderWithinParent = target.kind === source.kind && target.parentId === source.parentId && target.id !== source.id;
   if (!initiativeToDirection && !initiativeToInitiative && !reorderWithinParent) return null;
@@ -4179,13 +4190,16 @@ function markTaxonomyDropTarget(source, item, clientY) {
   }
   const hitBox = item.querySelector(":scope > .side-entity-line") || item;
   const rect = hitBox.getBoundingClientRect();
-  const sourceLocation = source.kind === "initiative" ? taxonomyInitiativeLocation(source.id) : null;
-  const canNestInContainer = initiativeToInitiative
-    && item.dataset.taxonomyContainer === "true"
-    && sourceLocation
-    && sourceLocation.initiative.parentInitiativeId !== target.id
-    && sourceLocation.initiative.kind !== "container"
-    && sourceLocation.initiative.activities.length === 0;
+  const canNestInContainer = canNestInitiativeInContainer({
+    sourceKind: source.kind,
+    targetKind: target.kind,
+    sourceId: source.id,
+    targetId: target.id,
+    sourceParentInitiativeId: sourceLocation?.initiative.parentInitiativeId,
+    targetIsContainer: item.dataset.taxonomyContainer === "true",
+    sourceIsContainer: sourceLocation?.initiative.kind === "container",
+    sourceHasActivities: Boolean(sourceLocation?.initiative.activities.length)
+  });
   const relativeY = (clientY - rect.top) / rect.height;
   if (canNestInContainer && relativeY >= 0.25 && relativeY <= 0.75) {
     item.classList.add("drop-into");
