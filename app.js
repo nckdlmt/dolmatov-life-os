@@ -1300,6 +1300,7 @@ function renderSidebarContext() {
                 <button type="button" data-taxonomy-add="initiative" data-parent-id="${area.id}" aria-label="Добавить инициативу" title="Добавить инициативу">+</button>
                 <button type="button" data-taxonomy-delete="direction" data-entity-id="${area.id}" aria-label="Удалить направление" title="Удалить">×</button>
               </span>
+              <button type="button" class="side-disclosure mobile-direction-disclosure ${area.id === state.openAreaId ? 'open' : ''}" data-expand-area="${area.id}" aria-label="${area.id === state.openAreaId ? 'Свернуть' : 'Раскрыть'} направление ${escapeHtml(area.name)}" aria-expanded="${area.id === state.openAreaId}"></button>
             </div>
             ${
               area.id === state.openAreaId
@@ -1379,7 +1380,14 @@ function handleSidebarSelection(button) {
   const activityId = button.dataset.sideActivity || null;
   const selectedInitiative = initiativeId ? findInitiative(initiativeId) : null;
 
-  if (!initiativeId) {
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    state.selectedAreaId = areaId;
+    state.selectedInitiativeId = initiativeId;
+    state.selectedActivityId = activityId;
+    document.body.classList.remove('mobile-menu-open');
+    qs('#mobileMenuToggle').setAttribute('aria-expanded', 'false');
+    qs('#mobileMenuBackdrop').hidden = true;
+  } else if (!initiativeId) {
     if (state.openAreaId === areaId) {
       state.activeView = "today";
       document.body.dataset.activeView = "today";
@@ -4506,6 +4514,20 @@ function bindNavigation() {
   });
 
   sideInitiatives.addEventListener("click", (event) => {
+    const disclosure = event.target.closest('.side-disclosure');
+    if (disclosure && window.matchMedia('(max-width: 900px)').matches) {
+      event.preventDefault();
+      const areaId = disclosure.dataset.expandArea;
+      if (areaId) {
+        state.openAreaId = state.openAreaId === areaId ? null : areaId;
+        state.openInitiativeId = null;
+      } else {
+        const initiativeId = disclosure.dataset.sideInitiative;
+        state.openInitiativeId = state.openInitiativeId === initiativeId ? null : initiativeId;
+      }
+      renderSidebarContext();
+      return;
+    }
     const addButton = event.target.closest("[data-taxonomy-add]");
     if (addButton) {
       event.preventDefault();

@@ -7021,6 +7021,7 @@ html[data-theme="dark"] {
   }
 }
 
+.mobile-direction-disclosure { display: none; }
 .mobile-menu-toggle, .mobile-menu-backdrop, .mobile-drawer-header,
 .mobile-add-task, .mobile-bottom-nav { display: none; }
 
@@ -7174,4 +7175,14 @@ html[data-theme="dark"] {
     background: #00000055; backdrop-filter: blur(2px);
   }
   .detail-pane { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  body.mobile-menu-open .hierarchy-sidebar .side-direction-line,
+  body.mobile-menu-open .hierarchy-sidebar .side-initiative-line {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 6px;
+  }
+  body.mobile-menu-open .hierarchy-sidebar .side-disclosure {
+    display: grid; position: static; width: 44px; height: 44px;
+    min-width: 44px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface-soft); transform: none;
+  }
 }
