@@ -1293,7 +1293,7 @@ function renderSidebarContext() {
         (area) => `
           <div class="side-area-group taxonomy-item" draggable="true" data-taxonomy-kind="direction" data-taxonomy-id="${area.id}" style="--side-color:${area.color}">
             <div class="side-entity-line side-direction-line">
-              <button class="side-area-button ${area.id === state.selectedAreaId ? "active" : ""}" data-side-area="${area.id}" style="--side-color:${area.color}">
+              <button class="side-area-button ${area.id === state.selectedAreaId ? "active" : ""}" draggable="true" data-side-area="${area.id}" style="--side-color:${area.color}">
                 <span class="side-area-row"><span>${escapeHtml(area.name)}</span></span>
               </button>
               <span class="taxonomy-actions">
@@ -1310,7 +1310,7 @@ function renderSidebarContext() {
                         (initiative) => `
                           <div class="side-initiative-node taxonomy-item" draggable="true" data-taxonomy-kind="initiative" data-taxonomy-id="${initiative.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${initiative.kind === "container" || initiative.activities.length > 0}">
                             <div class="side-entity-line side-initiative-line">
-                              <button class="side-initiative-button ${initiative.id === state.selectedInitiativeId ? "active" : ""}" data-side-area="${area.id}" data-side-initiative="${initiative.id}" style="--side-color:${area.color}">
+                              <button class="side-initiative-button ${initiative.id === state.selectedInitiativeId ? "active" : ""}" draggable="true" data-side-area="${area.id}" data-side-initiative="${initiative.id}" style="--side-color:${area.color}">
                                 <span class="side-initiative-row"><span>${escapeHtml(initiative.name)}</span></span>
                               </button>
                               <span class="taxonomy-actions">
@@ -1326,7 +1326,7 @@ function renderSidebarContext() {
                                     .map(
                                       (activity) => `
                                         <div class="side-activity-node taxonomy-item" draggable="true" data-taxonomy-kind="activity" data-taxonomy-id="${activity.id}" data-taxonomy-parent="${initiative.id}">
-                                          <button class="side-activity-button ${activity.id === state.selectedActivityId ? "active" : ""}" data-side-area="${area.id}" data-side-initiative="${initiative.id}" data-side-activity="${activity.id}" style="--side-color:${area.color}">
+                                          <button class="side-activity-button ${activity.id === state.selectedActivityId ? "active" : ""}" draggable="true" data-side-area="${area.id}" data-side-initiative="${initiative.id}" data-side-activity="${activity.id}" style="--side-color:${area.color}">
                                             <span>${escapeHtml(activity.name)}</span>
                                           </button>
                                           <span class="taxonomy-actions"><button type="button" data-taxonomy-delete="activity" data-entity-id="${activity.id}" data-parent-id="${initiative.id}" aria-label="Удалить активность" title="Удалить">×</button></span>
@@ -1339,7 +1339,7 @@ function renderSidebarContext() {
                                     .map(
                                       (child) => `
                                         <div class="side-activity-node side-nested-initiative-node taxonomy-item" draggable="true" data-taxonomy-kind="initiative" data-taxonomy-id="${child.id}" data-taxonomy-parent="${area.id}" data-taxonomy-container="${child.kind === "container" || child.activities.length > 0}">
-                                          <button class="side-activity-button ${child.id === state.selectedInitiativeId ? "active" : ""}" data-side-area="${area.id}" data-side-initiative="${child.id}" style="--side-color:${area.color}">
+                                          <button class="side-activity-button ${child.id === state.selectedInitiativeId ? "active" : ""}" draggable="true" data-side-area="${area.id}" data-side-initiative="${child.id}" style="--side-color:${area.color}">
                                             <span>${escapeHtml(child.name)}</span>
                                           </button>
                                           <span class="taxonomy-actions"><button type="button" data-taxonomy-delete="initiative" data-entity-id="${child.id}" data-parent-id="${area.id}" aria-label="Удалить инициативу" title="Удалить">×</button></span>
