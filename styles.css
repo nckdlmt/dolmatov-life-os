@@ -7181,13 +7181,16 @@ html[data-theme="dark"] {
     gap: 0;
   }
   body.mobile-menu-open .hierarchy-sidebar .side-disclosure {
-    display: grid; position: absolute; top: 0; right: 0;
+    display: grid; position: absolute; top: 50%; right: 0;
     width: 44px; height: 44px; min-width: 44px;
     border: 0; border-radius: 0 8px 8px 0;
-    background: transparent; transform: none;
+    background: transparent; transform: translateY(-50%);
+  }
+  body.mobile-menu-open .hierarchy-sidebar .side-disclosure::before {
+    margin: 0; transform: rotate(45deg);
   }
   body.mobile-menu-open .hierarchy-sidebar .side-disclosure.open::before {
-    transform: translateY(2px) rotate(225deg);
+    transform: rotate(225deg);
   }
   body.mobile-menu-open .hierarchy-sidebar .side-area-button,
   body.mobile-menu-open .hierarchy-sidebar .side-initiative-button {
