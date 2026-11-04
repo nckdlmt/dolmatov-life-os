@@ -6559,6 +6559,18 @@ html[data-theme="dark"] {
   background: transparent;
 }
 
+#quickInput .record-control {
+  display: grid; place-items: center; width: 44px; height: 44px; min-width: 44px;
+  padding: 0; border: 0; border-radius: 50%; background: transparent;
+}
+.record-control::before {
+  content: ""; display: block; width: 24px; height: 24px;
+  border-radius: 50%; background: #df3946;
+}
+.record-control[aria-pressed="true"]::before { border-radius: 4px; width: 18px; height: 18px; }
+#voiceReview:not([hidden]) { display: grid; gap: 8px; margin-block: 12px; }
+#voiceReview select, #voiceReview textarea { width: 100%; min-width: 0; padding: 8px; font: inherit; }
+
 .quick-capture-bubble {
   position: absolute;
   top: 86px;

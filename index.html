@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dolmatov Life OS</title>
-    <link rel="stylesheet" href="./styles.css?v=dolmatov-inline-chevron-20261103-2" />
+    <link rel="stylesheet" href="./styles.css?v=voice-capture-1" />
   </head>
   <body>
     <!--
@@ -148,11 +148,19 @@
         </header>
         <textarea id="voiceText" rows="1" aria-label="Быстрая запись" placeholder="Мысль, событие, цель или план"></textarea>
         <div class="ingest-actions">
-          <button class="icon-button text-button mic" id="micButton" type="button" title="Диктовка" aria-label="Диктовка">Rec</button>
+          <button class="record-control" id="micButton" type="button" title="Начать диктовку" aria-label="Начать диктовку" aria-pressed="false"></button>
           <button class="primary-action" id="parseButton" type="button">Разобрать</button>
           <button class="secondary-action" id="clearButton" type="button">Очистить</button>
         </div>
         <div class="parsed-output" id="parsedOutput" aria-live="polite"></div>
+        <form id="voiceReview" hidden>
+          <select name="kind" required aria-label="Тип записи"><option value="">Тип записи</option><option value="goal">Цель</option><option value="note">Мысль</option></select>
+          <textarea name="title" required aria-label="Текст записи"></textarea>
+          <select name="area" aria-label="Направление" required></select>
+          <select name="initiative" aria-label="Инициатива"></select>
+          <button class="primary-action" type="submit">Сохранить</button>
+        </form>
+        <button class="secondary-action" id="captureManualGoal" type="button">Написать цель</button>
       </section>
     </div>
 
@@ -178,6 +186,6 @@
       <button id="mobileTheme" type="button" aria-label="Сменить тему"><svg aria-hidden="true"><use href="#i-theme"/></svg><span>Тема</span></button>
     </nav>
     <script src="./cloud-config.js?v=dolmatov-cloud-20261027-1"></script>
-    <script type="module" src="./app.js?v=dolmatov-thoughts-20261104-1"></script>
+    <script type="module" src="./app.js?v=voice-capture-1"></script>
   </body>
 </html>

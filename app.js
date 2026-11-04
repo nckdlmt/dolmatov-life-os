@@ -1,4 +1,5 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
+import { bindVoiceCapture } from "./voice-capture.js";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer
@@ -4385,7 +4386,7 @@ function bindNavigation() {
   });
   qs('#mobileAddTask').addEventListener('click', () => {
     if (document.body.classList.contains('mobile-menu-open')) setMobileMenuOpen(false);
-    openTodayComposer('goal');
+    qs('#quickCaptureButton').click();
   });
   qs('#mobileSearch').addEventListener('click', openSearch);
   qs('#mobileTheme').addEventListener('click', () => qs('#themeToggle').click());
@@ -4707,14 +4708,28 @@ function bindActions() {
   voiceInput.addEventListener("input", resizeVoiceInput);
   resizeVoiceInput();
 
+  const voice = bindVoiceCapture({areas, save(kind, text, areaId, initiativeId) {
+    const scope = {areaId, initiativeId, activityId: null};
+    if (kind === 'note') {
+      state.notes.unshift({id: uid('note'), text, ...scope, createdAt: new Date().toISOString()});
+      refreshThoughtViews();
+    } else {
+      state.goals.unshift({id: uid('goal'), title: text, ...scope, date: '', time: 'без времени',
+        endTime: '', description: '', checklist: [], energy: 'средняя', type: 'single', done: false, completedDate: null});
+      refreshGoalViews();
+    }
+    saveUserData();
+  }});
   const setQuickCaptureOpen = (open) => {
     quickCaptureLayer.hidden = !open;
+    if (!open) voice.reset();
     quickCaptureButton.classList.toggle("active", open);
     quickCaptureButton.setAttribute("aria-expanded", String(open));
-    if (open) window.requestAnimationFrame(() => voiceInput.focus());
+    if (open && !window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => voiceInput.focus());
   };
 
   quickCaptureButton.addEventListener("click", () => setQuickCaptureOpen(quickCaptureLayer.hidden));
+  qs('#captureManualGoal').addEventListener('click', () => { setQuickCaptureOpen(false); openTodayComposer('goal'); });
   quickCaptureLayer.addEventListener("click", (event) => {
     if (event.target.closest("[data-close-quick-capture]")) setQuickCaptureOpen(false);
   });
@@ -4733,6 +4748,7 @@ function bindActions() {
   });
 
   qs("#parseButton").addEventListener("click", () => {
+    if (voice.reviewText()) return;
     const results = parseNaturalInput(qs("#voiceText").value);
     saveUserData();
     qs("#parsedOutput").innerHTML = results.map((item) => `<div class="parsed-chip">${item}</div>`).join("");
@@ -4741,14 +4757,12 @@ function bindActions() {
   });
 
   qs("#clearButton").addEventListener("click", () => {
+    voice.reset();
     voiceInput.value = "";
     resizeVoiceInput();
     qs("#parsedOutput").innerHTML = "";
   });
 
-  qs("#micButton").addEventListener("click", () => {
-    qs("#parsedOutput").innerHTML = '<div class="parsed-chip">В локальном MVP диктовка заменена текстовым вводом. Логика уже раскладывает события по направлениям и инициативам.</div>';
-  });
 
   qs("#themeToggle").addEventListener("click", () => {
     const dark = document.documentElement.dataset.theme !== "dark";
