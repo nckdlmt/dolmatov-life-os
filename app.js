@@ -1,5 +1,5 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
-import { bindVoiceCapture } from "./voice-capture.js";
+import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer

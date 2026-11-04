@@ -1,4 +1,5 @@
 import { parseVoiceCommand } from './voice-command.js';
+import { localDictation } from './local-dictation.js';
 
 export function bindVoiceCapture({areas, save}) {
   const byId = id => document.getElementById(id);
@@ -8,6 +9,8 @@ export function bindVoiceCapture({areas, save}) {
   const form = byId('voiceReview');
   const {kind, title, area, initiative} = form.elements;
   let current = null;
+  let preferLocal = false;
+  let timer;
 
   function fill(select, rows, placeholder, value) {
     select.replaceChildren(new Option(placeholder, ''), ...rows.map(row => new Option(row.name, row.id)));
@@ -29,7 +32,11 @@ export function bindVoiceCapture({areas, save}) {
   function reset() {
     const session = current;
     current = null;
-    if (session) session.abort();
+    clearTimeout(timer);
+    if (session) {
+      session.abort();
+      status.textContent = '';
+    }
     mic.setAttribute('aria-pressed', 'false');
     mic.setAttribute('aria-label', 'Начать диктовку');
     mic.title = 'Начать диктовку';
@@ -56,52 +63,89 @@ export function bindVoiceCapture({areas, save}) {
   mic.addEventListener('click', () => {
     if (current) { current.stop(); return; }
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Speech) {
-      status.textContent = 'В этом браузере используйте микрофон клавиатуры или введите команду и нажмите «Разобрать».';
-      input.focus();
-      return;
-    }
-    const session = new Speech();
-    session.lang = 'ru-RU';
-    session.interimResults = true;
-    session.continuous = false;
     const prefix = input.value.trim();
     let spoken = '';
-    let failed = false;
-    current = session;
-    form.hidden = true;
-    session.onresult = event => {
-      if (current !== session) return;
-      spoken = Array.from(event.results, result => result[0].transcript).join(' ').trim();
+    let session;
+    function transcript(words) {
+      if (current !== session || !words.trim()) return;
+      spoken = words.trim();
       input.value = [prefix, spoken].filter(Boolean).join(' ');
       input.dispatchEvent(new Event('input'));
-    };
-    session.onerror = event => {
-      if (current !== session) return;
-      failed = true;
-      status.textContent = event.error === 'not-allowed' ? 'Разрешите доступ к микрофону или введите текст.'
-        : 'Диктовка прервалась. Проверьте текст или повторите запись.';
-    };
-    session.onend = () => {
-      if (current !== session) return;
-      current = null;
-      reset();
-      if (failed) return;
-      if (spoken) review(parseVoiceCommand(input.value, areas));
-      else status.textContent = 'Речь не распознана. Попробуйте ещё раз.';
-    };
-    try {
-      session.start();
-      mic.setAttribute('aria-pressed', 'true');
-      mic.title = 'Остановить диктовку';
-      mic.setAttribute('aria-label', mic.title);
-      byId('parseButton').disabled = true;
-      input.readOnly = true;
-      status.textContent = 'Слушаю… Назовите цель или мысль, направление и инициативу.';
-    } catch {
-      reset();
-      status.textContent = 'Микрофон недоступен. Можно ввести текст.';
     }
+    function finish(message = '') {
+      if (current !== session) return;
+      reset();
+      if (spoken) review(parseVoiceCommand(input.value, areas));
+      else status.textContent = message || 'Речь не распознана. Нажмите кружок и повторите.';
+    }
+    const localHint = 'Нажмите кружок ещё раз для распознавания на устройстве.';
+    function retryLocally(reason) {
+      if (current !== session) return;
+      preferLocal = true;
+      finish(reason + ' ' + localHint);
+    }
+    function showStatus(message) {
+      if (current === session) status.textContent = message;
+    }
+    if (preferLocal || !Speech) {
+      session = localDictation({status: showStatus, transcript, finish, fail: finish});
+    } else {
+      let native;
+      let stopping = false;
+      session = {
+        start() {
+          showStatus('Подключаю микрофон… Если появится запрос, разрешите доступ.');
+          timer = setTimeout(() => retryLocally('Служба диктовки браузера не ответила.'), 15000);
+          native = new Speech();
+          native.lang = 'ru-RU';
+          native.interimResults = true;
+          native.continuous = false;
+          bindNativeEvents();
+          native.start();
+        },
+        stop() {
+          if (stopping) return;
+          stopping = true;
+          clearTimeout(timer);
+          showStatus('Завершаю расшифровку…');
+          timer = setTimeout(() => retryLocally('Браузер не завершил расшифровку.'), 1600);
+          native.stop();
+        },
+        abort() {
+          if (!native) return;
+          native.onresult = native.onerror = native.onend = native.onstart = null;
+          try { native.abort(); } catch { /* Already ended. */ }
+        }
+      };
+      function bindNativeEvents() {
+        native.onstart = () => {
+          if (current !== session || stopping) return;
+          clearTimeout(timer);
+          timer = setTimeout(() => retryLocally('Браузер не вернул текст.'), 20000);
+          showStatus('Слушаю. Когда закончите, нажмите красный квадрат.');
+        };
+        native.onresult = event => {
+          if (current !== session) return;
+          transcript(Array.from(event.results, result => result[0].transcript).join(' '));
+          if (spoken && !stopping) clearTimeout(timer);
+        };
+        native.onerror = event => {
+          if (event.error === 'audio-capture') finish('Браузер не получил звук. Проверьте выбранный микрофон и доступ к нему.');
+          else if (event.error === 'not-allowed') retryLocally('Браузер отказал в доступе к диктовке. Проверьте разрешение на микрофон.');
+          else retryLocally(event.error === 'no-speech' ? 'Браузер не услышал речь.' : 'Служба диктовки браузера недоступна.');
+        };
+        native.onend = () => spoken ? finish() : retryLocally('Браузер завершил диктовку без текста.');
+      }
+    }
+    current = session;
+    form.hidden = true;
+    mic.setAttribute('aria-pressed', 'true');
+    mic.title = 'Остановить диктовку';
+    mic.setAttribute('aria-label', mic.title);
+    byId('parseButton').disabled = true;
+    input.readOnly = true;
+    try { session.start(); }
+    catch { retryLocally('Не удалось запустить диктовку браузера.'); }
   });
   window.addEventListener('pagehide', reset);
   return {reset, reviewText() {

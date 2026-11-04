@@ -1,0 +1,5 @@
+vosk-browser 0.0.8 — Ciaran O'Reilly, Apache License 2.0.
+Distributed build from https://registry.npmjs.org/vosk-browser/-/vosk-browser-0.0.8.tgz
+vosk-model-small-ru-0.22 — Alpha Cephei, Apache License 2.0.
+Repacked as tar.gz from https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+The original model README is included in the archive. See LICENSE.txt.
