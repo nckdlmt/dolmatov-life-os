@@ -2021,7 +2021,7 @@ function openQuickEntryChooser(anchorButton) {
             <strong>Цель</strong>
           </button>
           <button class="quick-entry-option" type="button" data-quick-entry-type="note">
-            <strong>Заметка</strong>
+            <strong>Мысль</strong>
           </button>
         </div>
       </section>
@@ -2055,13 +2055,13 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
       <form class="calendar-goal-composer quick-goal-composer" id="quickGoalComposerForm">
         <header class="calendar-goal-composer-header">
           <div>
-            <p class="eyebrow">${isNote ? "Новая заметка" : "Новая цель"}</p>
-            <h2 id="quickGoalComposerTitle">${isNote ? "Добавить заметку" : "Добавить цель"}</h2>
+            <p class="eyebrow">${isNote ? "Новая мысль" : "Новая цель"}</p>
+            <h2 id="quickGoalComposerTitle">${isNote ? "Добавить мысль" : "Добавить цель"}</h2>
           </div>
           <button class="icon-button" type="button" data-close-calendar-goal aria-label="Закрыть">×</button>
         </header>
         <label class="calendar-composer-title-field">
-          <textarea name="title" rows="1" autocomplete="off" placeholder="${isNote ? "Текст заметки" : "Название цели"}" required></textarea>
+          <textarea name="title" rows="1" autocomplete="off" placeholder="${isNote ? "Текст мысли" : "Название цели"}" required></textarea>
         </label>
         ${!isNote ? `
           <label class="quick-goal-description-field">
@@ -2240,7 +2240,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
     const title = String(data.title || "").trim();
 
     if (!title) {
-      error.textContent = isNote ? "Введите текст заметки." : "Введите название цели.";
+      error.textContent = isNote ? "Введите текст мысли." : "Введите название цели.";
       return;
     }
     if (isNote) {
@@ -3117,7 +3117,7 @@ function renderThoughtRows(notes, showScope = false) {
             <p>${escapeHtml(note.text)}</p>
             <div class="thought-item-meta">
               ${scopeLabel ? `<span>${escapeHtml(scopeLabel)}</span>` : `<span></span>`}
-              <button class="icon-button thought-delete" type="button" data-thought-delete="${note.id}" aria-label="Удалить заметку" title="Удалить">×</button>
+              <button class="icon-button thought-delete" type="button" data-thought-delete="${note.id}" aria-label="Удалить мысль" title="Удалить">×</button>
             </div>
           </article>`;
       }).join("")}
@@ -3276,14 +3276,14 @@ function renderNoteWorkspace(note) {
   return `
     <article class="object-editor note-workspace" id="noteWorkspace" aria-labelledby="noteWorkspaceTitle">
       <header class="object-editor-toolbar">
-        <span>Заметка</span>
+        <span>Мысль</span>
         <button class="icon-button" type="button" data-close-note-workspace aria-label="Закрыть редактор">×</button>
       </header>
       <div class="object-editor-body">
         <p class="object-editor-context">${escapeHtml(scope || "Без направления")}</p>
-        <h2 class="sr-only" id="noteWorkspaceTitle">Редактор заметки</h2>
-        <textarea class="note-content-editor" id="noteContentEditor" aria-label="Текст заметки" placeholder="Запиши мысль...">${escapeHtml(note.text)}</textarea>
-        <button class="object-delete-button" type="button" data-delete-open-note="${note.id}">Удалить заметку</button>
+        <h2 class="sr-only" id="noteWorkspaceTitle">Редактор мысли</h2>
+        <textarea class="note-content-editor" id="noteContentEditor" aria-label="Текст мысли" placeholder="Запиши мысль...">${escapeHtml(note.text)}</textarea>
+        <button class="object-delete-button" type="button" data-delete-open-note="${note.id}">Удалить мысль</button>
       </div>
     </article>`;
 }
@@ -4264,7 +4264,7 @@ function searchableRadianceItems(query) {
     items.push({ kind: "goal", id: goal.id, title: goal.title, context: ["Цель", area?.name].filter(Boolean).join(" · ") });
   });
   state.notes.forEach((note) => {
-    items.push({ kind: "note", id: note.id, title: note.text, context: ["Заметка", thoughtScopeLabel(note)].filter(Boolean).join(" · ") });
+    items.push({ kind: "note", id: note.id, title: note.text, context: ["Мысль", thoughtScopeLabel(note)].filter(Boolean).join(" · ") });
   });
   return items
     .filter((item) => `${item.title} ${item.context}`.toLocaleLowerCase("ru-RU").includes(needle))
@@ -4277,7 +4277,7 @@ function renderSearchResults(query = "") {
   const filter = qs('#searchLayer').dataset.filter || 'all';
   const items = searchableRadianceItems(query).filter(item => filter === 'all' || (filter === 'structure' ? ['direction', 'initiative', 'activity'].includes(item.kind) : item.kind === filter));
   if (!query.trim()) {
-    host.innerHTML = `<div class="search-empty"><svg aria-hidden="true"><use href="#i-search" /></svg><strong>Что вы хотите найти?</strong><span>Введите название задачи, заметки или инициативы.</span></div>`;
+    host.innerHTML = `<div class="search-empty"><svg aria-hidden="true"><use href="#i-search" /></svg><strong>Что вы хотите найти?</strong><span>Введите название задачи, мысли или инициативы.</span></div>`;
     return;
   }
   host.innerHTML = items.length
@@ -4883,7 +4883,7 @@ function renderTodayInlineComposer(mode) {
   return `
     <form class="calendar-goal-composer quick-goal-composer today-inline-composer" id="todayInlineComposerForm" data-today-composer-form="${mode}" novalidate>
       <label class="calendar-composer-title-field">
-        <textarea name="title" rows="1" autocomplete="off" placeholder="${isNote ? "Текст заметки" : "Название цели"}" required></textarea>
+        <textarea name="title" rows="1" autocomplete="off" placeholder="${isNote ? "Текст мысли" : "Название цели"}" required></textarea>
       </label>
       ${!isNote ? `
         <label class="quick-goal-description-field">
@@ -4923,10 +4923,10 @@ function renderTodayInlineComposer(mode) {
 
 function renderTodayWorkspaceStart(mode = null) {
   return `
-    <section class="today-workspace-start" aria-label="Добавить цель или заметку">
+    <section class="today-workspace-start" aria-label="Добавить цель или мысль">
       <div class="today-workspace-modes" role="tablist" aria-label="Тип новой записи">
         <button class="${mode === "goal" ? "active" : ""}" type="button" role="tab" aria-selected="${mode === "goal"}" data-today-composer-mode="goal">Цель</button>
-        <button class="${mode === "note" ? "active" : ""}" type="button" role="tab" aria-selected="${mode === "note"}" data-today-composer-mode="note">Заметка</button>
+        <button class="${mode === "note" ? "active" : ""}" type="button" role="tab" aria-selected="${mode === "note"}" data-today-composer-mode="note">Мысль</button>
         <button class="today-workspace-mobile-close" type="button" data-cancel-today-composer aria-label="Закрыть">×</button>
       </div>
       ${mode ? renderTodayInlineComposer(mode) : ""}
@@ -5049,7 +5049,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
     const data = Object.fromEntries(new FormData(form).entries());
     const title = String(data.title || "").trim();
     if (!title) {
-      error.textContent = isNote ? "Введите текст заметки." : "Введите название цели.";
+      error.textContent = isNote ? "Введите текст мысли." : "Введите название цели.";
       return;
     }
 
