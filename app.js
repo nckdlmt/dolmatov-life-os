@@ -5093,7 +5093,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
   const isNote = mode === "note";
   const titleField = form.elements.title;
   const descriptionField = form.elements.description;
-  const error = form.querySelector(".calendar-composer-error");
+  const error = form.querySelector(".today-composer-footer .calendar-composer-error");
   const checklistItems = [];
   form.addEventListener("input", () => {
     form.querySelector(".today-composer-feedback").textContent = "";
