@@ -4,8 +4,10 @@ import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
 import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate,
   isRecurringGoal, recurrenceLabel, occursOnDate, defaultOccurrenceDate, goalOccurrence,
   setOccurrenceDone, goalCalendarOccurrences, matchingGoalCopies, mergeGoalCopies, restoreMergedGoalCopies
-} from "./goal-schedule.js?v=recurring-1";
-import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=recurring-1";
+} from "./goal-schedule.js?v=calendar-edit-1";
+import { editCalendarGoal } from "./calendar-goal-edit.js?v=calendar-edit-1";
+import { bindCalendarGoalGestures, consumeCalendarGestureClick } from "./calendar-goal-gestures.js?v=calendar-edit-1";
+import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=calendar-edit-1";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer
@@ -1666,7 +1668,54 @@ function renderCalendar() {
   qs("#calendarCanvas").innerHTML = grid.join("");
   bindCalendarEventActions();
   bindCalendarSlotSelection();
+  bindCalendarGoalGestures({ grid:qs('.calendar-grid'), getGoal:id=>state.goals.find(goal=>goal.id===id),
+    onBegin:()=>{closeCalendarEventPopover();closeCalendarGoalComposer();}, onChange:requestCalendarGoalChange });
   scrollCalendarToHour(5);
+}
+
+function requestCalendarGoalChange(change) {
+  const goal = state.goals.find(item=>item.id===change.goalId);
+  if (!goal) return;
+  const dialog = document.createElement('dialog');
+  dialog.className = 'calendar-change-dialog';
+  dialog.setAttribute('aria-labelledby','calendarChangeTitle');
+  const recurring = isRecurringGoal(goal);
+  const formatDate = key=>dateFromKey(key).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  dialog.innerHTML = `<h3 id="calendarChangeTitle">${change.mode==='move'?'Перенести цель':'Изменить время'}</h3>
+    <p class="calendar-change-title">${escapeHtml(goal.title)}</p>
+    <p>${escapeHtml(formatDate(change.range.date))} · ${escapeHtml(goalScheduleRange(change.range))}</p>
+    ${recurring ? `<p>Какие повторения изменить?</p><div class="calendar-change-options">
+      <button type="button" data-calendar-scope="one"><strong>Только это событие</strong><span>Станет отдельной целью без повторения</span></button>
+      <button type="button" data-calendar-scope="future"><strong>Это и последующие</strong><span>Прошлые события останутся без изменений</span></button>
+      <button type="button" data-calendar-scope="all"><strong>Всю серию</strong><span>Изменятся все повторения, включая прошлые</span></button>
+    </div>` : ''}
+    <p class="calendar-composer-error" role="alert"></p>
+    <button type="button" class="secondary-action" data-calendar-change-cancel>Отмена</button>`;
+  const close = () => { dialog.close();dialog.remove(); };
+  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+  dialog.querySelector('[data-calendar-change-cancel]').addEventListener('click',close);
+  dialog.addEventListener('click',event=>{if(event.target===dialog) {const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom) close();}});
+  dialog.addEventListener('keydown',event=>event.stopPropagation());
+  const apply = scope => {
+    try {
+      const current = state.goals.find(item=>item.id===change.goalId);
+      if (JSON.stringify(current)!==change.original) throw new Error('Цель изменилась во время переноса. Закройте окно и повторите перенос.');
+      const goals = editCalendarGoal(state.goals,{...change,scope,newId:uid('goal')});
+      const scrollTop = qs('.calendar-time-scroll')?.scrollTop || 0;
+      state.goals = goals;
+      state.events = state.events.filter(item=>item.goalId!==change.goalId);
+      if(state.openGoalId===change.goalId) {state.openGoalId=null;state.openGoalOccurrenceDate=null;}
+      close();refreshGoalViews();
+      requestAnimationFrame(()=>{const scroll=qs('.calendar-time-scroll');if(scroll)scroll.scrollTop=scrollTop;});
+    } catch(error) {
+      dialog.querySelector('[role="alert"]').textContent=error.message;
+      if (!dialog.isConnected) document.body.append(dialog);
+      if (!dialog.open) dialog.showModal();
+    }
+  };
+  dialog.querySelectorAll('[data-calendar-scope]').forEach(button=>button.addEventListener('click',()=>apply(button.dataset.calendarScope)));
+  if(recurring) {document.body.append(dialog);dialog.showModal();}
+  else apply('one');
 }
 
 function scrollCalendarToHour(hour) {
@@ -1705,6 +1754,8 @@ function renderCalendarEvent(event, dayIndex) {
         <strong>${escapeHtml(event.title)}</strong>
         <span>${escapeHtml(formatEventRange(event))} / ${escapeHtml(initiative.name)}</span>
       </div>
+      ${event.goalId && !event.continuesBefore ? '<span class="calendar-event-resize is-start" data-calendar-resize="start" aria-label="Изменить начало цели" title="Потяните, чтобы изменить начало"></span>' : ''}
+      ${event.goalId && !event.continuesAfter ? '<span class="calendar-event-resize is-end" data-calendar-resize="end" aria-label="Изменить окончание цели" title="Потяните, чтобы изменить окончание"></span>' : ''}
     </div>
   `;
 }
@@ -5472,6 +5523,8 @@ function finishGoalWithAnimation(goal, source) {
 }
 
 document.addEventListener("click", (event) => {
+  if (consumeCalendarGestureClick(event)) return;
+  if (event.target.closest('[data-calendar-resize]')) {event.preventDefault();event.stopImmediatePropagation();return;}
   const todayComposerButton = event.target.closest("[data-today-composer-mode]");
   if (todayComposerButton) {
     event.preventDefault();

@@ -2179,6 +2179,81 @@ button.checkbox {
   min-width: 0;
 }
 
+.calendar-event[data-calendar-goal-open] {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.calendar-event .calendar-event-resize {
+  position: absolute;
+  z-index: 6;
+  left: 0;
+  right: 0;
+  height: min(7px, 25%);
+  margin: 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.calendar-event-resize.is-start { top: 0; }
+.calendar-event-resize.is-end { bottom: 0; }
+.calendar-event-resize::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 10px);
+  top: 2px;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--event-color);
+  opacity: 0;
+}
+.calendar-event:hover .calendar-event-resize::after { opacity: .65; }
+.calendar-event.is-drag-source { opacity: .25; }
+.calendar-grid.is-editing-event { cursor: grabbing; user-select: none; }
+.calendar-edit-preview { pointer-events: none; z-index: 12; }
+.calendar-edit-preview .calendar-draft-event-body { position: sticky; top: 5px; }
+
+.calendar-change-dialog {
+  width: min(410px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  color: var(--ink);
+  background: var(--surface-solid);
+  box-shadow: 0 12px 50px #0002;
+}
+.calendar-change-dialog::backdrop { background: #0003; }
+.calendar-change-dialog h3 { margin: 0 0 16px; font-size: 20px; }
+.calendar-change-dialog p { font-size: 14px; line-height: 1.4; }
+.calendar-change-title { font-weight: 600; }
+.calendar-change-options { display: grid; gap: 8px; margin: 16px 0; }
+.calendar-change-options button {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-solid);
+  color: var(--ink);
+  cursor: pointer;
+}
+.calendar-change-options button:hover,
+.calendar-change-options button:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface-solid)); }
+.calendar-change-options strong { font-size: 15px; font-weight: 500; }
+.calendar-change-options span { font-size: 12px; color: var(--muted); }
+.calendar-change-dialog [data-calendar-change-cancel] { width: 100%; }
+@media (pointer: coarse) {
+  .calendar-event .calendar-event-resize { height: min(9px, 25%); }
+  .calendar-event-resize::after { opacity: .45; }
+}
+
 .calendar-event strong,
 .calendar-event span {
   display: block;

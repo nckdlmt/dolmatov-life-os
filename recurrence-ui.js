@@ -1,4 +1,4 @@
-import { isRecurringGoal, recurrenceSettings } from './goal-schedule.js?v=recurring-1';
+import { isRecurringGoal, recurrenceSettings } from './goal-schedule.js?v=calendar-edit-1';
 
 const escape = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const weekdays = [[1,'Пн'],[2,'Вт'],[3,'Ср'],[4,'Чт'],[5,'Пт'],[6,'Сб'],[0,'Вс']];
@@ -6,7 +6,7 @@ const weekdays = [[1,'Пн'],[2,'Вт'],[3,'Ср'],[4,'Чт'],[5,'Пт'],[6,'С�
 export function renderRecurrenceControls(goal = {}) {
   const enabled = isRecurringGoal(goal), rule = goal.recurrence || {};
   const settings = recurrenceSettings({...goal,date:goal.date || '2027-01-11'});
-  return `<section class="goal-recurrence" aria-label="Повторение цели" data-custom-weekdays="${rule.frequency==='custom'&&rule.weekdays?.length?'true':'false'}">
+  return `<section class="goal-recurrence" aria-label="Повторение цели" data-repeat-origin="${escape(JSON.stringify({date:goal.date,rule}))}" data-custom-weekdays="${rule.frequency==='custom'&&rule.weekdays?.length?'true':'false'}">
     <label class="calendar-repeat-toggle"><input name="repeat" type="checkbox" ${enabled?'checked':''}><span>Повторяемая цель</span></label>
     <div class="goal-recurrence-fields" ${enabled?'':'hidden'}>
       <label><span>Периодичность</span><select name="frequency" aria-label="Периодичность">
@@ -32,9 +32,16 @@ export function readRecurrence(root) {
   const field = name => root.querySelector(`[name="${name}"]`);
   if (!field('repeat')?.checked || field('frequency')?.value === 'none') return null;
   const frequency = field('frequency').value;
-  return { frequency, until:field('repeatUntil')?.value || '',
+  const result = { frequency, until:field('repeatUntil')?.value || '',
     ...(frequency==='custom'?{basis:field('repeatBasis').value, interval:Number(field('repeatInterval').value),unit:field('repeatUnit').value,
       weekdays:[...root.querySelectorAll('[name="repeatWeekday"]:checked')].map(input=>Number(input.value))}:{}) };
+  const origin = JSON.parse(root.querySelector('.goal-recurrence')?.dataset.repeatOrigin || '{}');
+  const signature = rule => JSON.stringify([rule.frequency,rule.basis || 'scheduled',rule.unit || '',Number(rule.interval)||1,[...(rule.weekdays||[])].sort()]);
+  const date=root.querySelector('[name="date"], #goalDateEditor')?.value;
+  if (origin.rule && origin.date===date && signature(origin.rule)===signature(result)) {
+    for (const key of ['anchorDate','weekPhaseOffset']) if(origin.rule[key]!==undefined)result[key]=origin.rule[key];
+  }
+  return result;
 }
 
 export function recurrenceError(rule, date) {

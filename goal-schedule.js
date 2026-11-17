@@ -73,7 +73,7 @@ export function recurrenceSettings(goal) {
   const units = {daily:'day',weekdays:'week',weekly:'week',monthly:'month',yearly:'year'};
   const unit = units[rule.frequency] || (['day','week','month','year'].includes(rule.unit) ? rule.unit : 'day');
   const interval = rule.frequency === 'custom' ? Math.max(1,Math.min(999,Math.floor(Number(rule.interval) || 1))) : 1;
-  const weekday = new Date(`${goal.date}T00:00:00Z`).getUTCDay();
+  const weekday = new Date(`${rule.anchorDate || goal.date}T00:00:00Z`).getUTCDay();
   const weekdays = rule.frequency === 'weekdays' ? [1,2,3,4,5] : rule.frequency === 'custom' && rule.weekdays?.length ? [...new Set(rule.weekdays.map(Number))].filter(n=>n>=0&&n<7) : [weekday];
   return {unit,interval,weekdays,basis:rule.basis === 'completion' ? 'completion' : 'scheduled'};
 }
@@ -98,37 +98,51 @@ function addPeriod(date, interval, unit) {
 function monday(day) { return day - (new Date(day * DAY).getUTCDay()+6)%7; }
 
 function matchesSchedule(goal,date) {
-  const first=dayNumber(goal.date), day=dayNumber(date), rule=recurrenceSettings(goal);
+  const anchor=goal.recurrence?.anchorDate || goal.date;
+  const first=dayNumber(anchor), day=dayNumber(date), rule=recurrenceSettings(goal);
   if (rule.unit==='day') return (day-first)%rule.interval===0;
-  if (rule.unit==='week') return ((monday(day)-monday(first))/7)%rule.interval===0 && rule.weekdays.includes(new Date(day*DAY).getUTCDay());
+  if (rule.unit==='week') {
+    const shift=Number(goal.recurrence.weekPhaseOffset) || 0;
+    return ((monday(day-shift)-monday(first-shift))/7)%rule.interval===0 && rule.weekdays.includes(new Date(day*DAY).getUTCDay());
+  }
   const a=new Date(first*DAY), b=new Date(day*DAY);
   const months=(b.getUTCFullYear()-a.getUTCFullYear())*12+b.getUTCMonth()-a.getUTCMonth();
-  if (rule.unit==='month') return months%rule.interval===0 && addPeriod(goal.date,months,'month')===date;
+  if (rule.unit==='month') return months%rule.interval===0 && addPeriod(anchor,months,'month')===date;
   const years=b.getUTCFullYear()-a.getUTCFullYear();
-  return years%rule.interval===0 && addPeriod(goal.date,years,'year')===date;
+  return years%rule.interval===0 && addPeriod(anchor,years,'year')===date;
 }
 
-function nextScheduledDate(goal, after) {
-  const rule=recurrenceSettings(goal), first=dayNumber(goal.date), from=dayNumber(after<goal.date?goal.date:after);
+function nextScheduledCandidate(goal, after) {
+  const anchor=goal.recurrence?.anchorDate || goal.date;
+  const rule=recurrenceSettings(goal), first=dayNumber(anchor), from=dayNumber(after<goal.date?goal.date:after);
   if (!Number.isFinite(first)||!Number.isFinite(from)) return goal.date;
   if (rule.unit==='day') return dayKey(first+Math.ceil((from-first)/rule.interval)*rule.interval);
   if (rule.unit==='week') {
-    const week=monday(first), cycle=Math.floor((monday(from)-week)/(7*rule.interval));
-    const weekdays=[...rule.weekdays].sort((a,b)=>(a+6)%7-(b+6)%7);
+    const shift=Number(goal.recurrence.weekPhaseOffset) || 0;
+    const week=monday(first-shift)+shift, cycle=Math.floor((monday(from-shift)-(week-shift))/(7*rule.interval));
+    const offset=weekday=>((weekday-shift+6)%7+7)%7;
+    const weekdays=[...rule.weekdays].sort((a,b)=>offset(a)-offset(b));
     for(let n=cycle;n<=cycle+1;n++) for(const weekday of weekdays) {
-      const day=week+n*rule.interval*7+(weekday+6)%7;
+      const day=week+n*rule.interval*7+offset(weekday);
       if(day>=first&&day>=from) return dayKey(day);
     }
   }
   const a=new Date(first*DAY),b=new Date(from*DAY);
   const distance=rule.unit==='month' ? (b.getUTCFullYear()-a.getUTCFullYear())*12+b.getUTCMonth()-a.getUTCMonth() : b.getUTCFullYear()-a.getUTCFullYear();
   let n=Math.max(0,Math.floor(distance/rule.interval));
-  let next=addPeriod(goal.date,n*rule.interval,rule.unit);
-  if(dayNumber(next)<from) next=addPeriod(goal.date,(n+1)*rule.interval,rule.unit);
+  let next=addPeriod(anchor,n*rule.interval,rule.unit);
+  if(dayNumber(next)<from) next=addPeriod(anchor,(n+1)*rule.interval,rule.unit);
   return next;
 }
 
-function nextCompletionDate(goal) {
+function nextScheduledDate(goal, after) {
+  const excluded=new Set(goal.excludedDates || []);
+  let next=nextScheduledCandidate(goal,after);
+  while(excluded.has(next)) next=nextScheduledCandidate(goal,dayKey(dayNumber(next)+1));
+  return next;
+}
+
+function nextCompletionCandidate(goal) {
   const completed=(goal.doneDates || []).map(date=>({date,on:goal.completionDates?.[date] || date})).sort((a,b)=>a.on.localeCompare(b.on)||a.date.localeCompare(b.date));
   if(!completed.length) return nextScheduledDate(goal,goal.date);
   const rule=recurrenceSettings(goal),last=completed.at(-1);
@@ -139,10 +153,18 @@ function nextCompletionDate(goal) {
   return next;
 }
 
+function nextCompletionDate(goal) {
+  const rule=recurrenceSettings(goal), excluded=new Set(goal.excludedDates || []);
+  let next=nextCompletionCandidate(goal);
+  if(next<goal.date) next=nextScheduledDate(goal,goal.date);
+  while(excluded.has(next)) next=addPeriod(next,rule.interval,rule.unit);
+  return next;
+}
+
 export function occursOnDate(goal, date) {
   if (!isRecurringGoal(goal)) return goal.date === date;
   const first=dayNumber(goal.date),day=dayNumber(date);
-  if(!Number.isFinite(first)||!Number.isFinite(day)||day<first||(goal.recurrence.until&&date>goal.recurrence.until)) return false;
+  if(!Number.isFinite(first)||!Number.isFinite(day)||day<first||(goal.recurrence.until&&date>goal.recurrence.until)||(goal.excludedDates || []).includes(date)) return false;
   if(recurrenceSettings(goal).basis==='completion') return (goal.doneDates || []).includes(date)||nextCompletionDate(goal)===date;
   return matchesSchedule(goal,date);
 }
