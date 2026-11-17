@@ -1834,6 +1834,11 @@ button.checkbox {
   overflow: visible;
 }
 
+.calendar-grid.is-selecting {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .calendar-head,
 .calendar-time,
 .calendar-slot {

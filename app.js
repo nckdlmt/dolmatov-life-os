@@ -1767,14 +1767,24 @@ function renderCalendarDraftSelection(preview, selection, hourHeight) {
 function bindCalendarSlotSelection() {
   const grid = qs(".calendar-grid");
   if (!grid) return;
+  let suppressSelectionClick = false;
+
+  grid.addEventListener("click", (event) => {
+    if (!suppressSelectionClick) return;
+    suppressSelectionClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 
   grid.addEventListener("pointerdown", (event) => {
-    if (state.calendarMode === 'seven') return;
+    // A new physical gesture must never inherit suppression from a cancelled drag.
+    suppressSelectionClick = false;
     if (event.pointerType !== "mouse" || event.button !== 0 || event.target.closest(".calendar-event")) return;
     const slot = event.target.closest("[data-calendar-slot]");
     if (!slot) return;
 
-    event.preventDefault();
+    const weekly = state.calendarMode === "seven";
+    const pointerId = event.pointerId;
     const anchor = calendarPointerTime(slot, event.clientY);
     const hourHeight = slot.getBoundingClientRect().height || 44;
     const selection = {
@@ -1784,21 +1794,55 @@ function bindCalendarSlotSelection() {
       end: Math.min(24, anchor + 0.25)
     };
     let moved = false;
-    const preview = document.createElement("div");
-    preview.className = "calendar-draft-selection";
-    preview.style.setProperty("--draft-color", "var(--accent)");
-    grid.append(preview);
-    renderCalendarDraftSelection(preview, selection, hourHeight);
+    let preview = null;
+    let holdTimer;
 
     const stop = () => {
+      clearTimeout(holdTimer);
+      grid.classList.remove("is-selecting");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("pointercancel", cancelPointer);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", keydown);
+    };
+
+    const cancel = () => {
+      stop();
+      preview?.remove();
+    };
+    const cancelPointer = (cancelEvent) => {
+      if (cancelEvent.pointerId === pointerId) cancel();
+    };
+    const keydown = (keyEvent) => {
+      if (keyEvent.key !== "Escape") return;
+      keyEvent.preventDefault();
+      cancel();
+    };
+
+    const begin = () => {
+      if (preview) return;
+      if (!grid.isConnected) return cancel();
+      clearTimeout(holdTimer);
+      closeCalendarGoalComposer();
+      suppressSelectionClick = true;
+      grid.classList.add("is-selecting");
+      preview = document.createElement("div");
+      preview.className = "calendar-draft-selection";
+      preview.style.setProperty("--draft-color", "var(--accent)");
+      grid.append(preview);
+      renderCalendarDraftSelection(preview, selection, hourHeight);
     };
 
     const move = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (!(moveEvent.buttons & 1)) return cancel();
       const hovered = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest("[data-calendar-slot]");
       if (!hovered || hovered.dataset.calendarDate !== selection.date) return;
+      if (!preview && Math.hypot(moveEvent.clientX - event.clientX, moveEvent.clientY - event.clientY) < 6) return;
+      begin();
+      if (!preview) return;
+      moveEvent.preventDefault();
       const current = calendarPointerTime(hovered, moveEvent.clientY);
       moved = moved || Math.abs(current - anchor) >= 0.25;
       selection.start = Math.min(anchor, current);
@@ -1806,8 +1850,12 @@ function bindCalendarSlotSelection() {
       renderCalendarDraftSelection(preview, selection, hourHeight);
     };
 
-    const finish = () => {
+    const finish = (upEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       stop();
+      // A quick weekly click bubbles to calendar navigation without creating a draft.
+      if (!preview) return;
+      upEvent.preventDefault();
       if (!moved) {
         selection.end = Math.min(24, selection.start + 1);
         renderCalendarDraftSelection(preview, selection, hourHeight);
@@ -1816,14 +1864,17 @@ function bindCalendarSlotSelection() {
       openCalendarGoalComposer(selection, preview);
     };
 
-    const cancel = () => {
-      stop();
-      preview.remove();
-    };
-
     window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", finish, { once: true });
-    window.addEventListener("pointercancel", cancel, { once: true });
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancelPointer);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", keydown);
+    if (weekly) {
+      holdTimer = setTimeout(begin, 350);
+    } else {
+      event.preventDefault();
+      begin();
+    }
   });
 }
 
