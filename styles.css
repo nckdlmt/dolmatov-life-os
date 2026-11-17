@@ -4401,6 +4401,19 @@ button.checkbox {
   gap: 10px;
 }
 
+.goal-end-date-field,
+.goal-schedule-hint {
+  grid-column: 1 / -1;
+}
+
+.goal-schedule-hint {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .quick-goal-time-field {
   display: grid;
   gap: 7px;

@@ -1,5 +1,6 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
 import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
+import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate } from "./goal-schedule.js?v=multi-day-1";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer
@@ -1167,7 +1168,31 @@ function formatEventTime(event) {
 }
 
 function formatEventRange(event) {
+  if (event.scheduleRange) return event.scheduleRange;
   return event.end === undefined ? formatEventTime(event) : `${formatEventTime(event)}-${formatClock(event.end, event.endMinute || 0)}`;
+}
+
+function bindGoalScheduleHint(root) {
+  const start = root.querySelector('[name="time"], #goalTimeEditor');
+  const end = root.querySelector('[name="endTime"], #goalEndTimeEditor');
+  const date = root.querySelector('[name="date"], #goalDateEditor');
+  const endDate = root.querySelector('[name="endDate"], #goalEndDateEditor');
+  if (!start || !end || !date || !endDate) return;
+  const hint = document.createElement("small");
+  hint.className = "goal-schedule-hint";
+  hint.setAttribute("aria-live", "polite");
+  endDate.closest("label").after(hint);
+  const update = () => {
+    endDate.min = date.value;
+    const goal = { date: date.value, time: start.value, endTime: end.value, endDate: endDate.value };
+    const error = goalScheduleError(goal);
+    const schedule = goalSchedule(goal);
+    hint.textContent = error || (schedule && schedule.lastDay > schedule.firstDay
+      ? `Окончание ${schedule.endDate.split("-").reverse().join(".")} в ${end.value || "указанное время"}`
+      : "Если окончание раньше начала, цель завершится на следующий день.");
+  };
+  [start, end, date, endDate].forEach(field => field.addEventListener("input", update));
+  update();
 }
 
 function escapeHtml(value = "") {
@@ -1232,18 +1257,12 @@ function goalHasScheduledTime(goal) {
   return Boolean(/^\d{4}-\d{2}-\d{2}$/.test(goal?.date || "") && timeToCalendarValue(goal?.time));
 }
 
-function calendarEventFromGoal(goal) {
-  const time = timeToCalendarValue(goal.time);
-  const endTime = timeToCalendarValue(goal.endTime);
+function calendarEventFromGoal(goal, segment) {
   const initiative = findInitiativeOrDirectionBlock(goal.initiativeId);
   return {
-    id: `goal-event-${goal.id}`,
+    id: `goal-event-${goal.id}-${segment.date}`,
     goalId: goal.id,
-    date: goal.date,
-    start: time.value,
-    minute: time.minute,
-    end: Math.min(24, endTime && endTime.value > time.value ? endTime.value : time.value + 1),
-    endMinute: endTime?.minute || 0,
+    ...segment,
     title: goal.title,
     areaId: goal.areaId,
     initiativeId: goal.initiativeId,
@@ -1269,8 +1288,10 @@ function calendarEventsByDate(keys) {
 
   const eventGoalIds = new Set(state.events.filter((event) => event.goalId).map((event) => event.goalId));
   state.goals.forEach((goal) => {
-    if (!keySet.has(goal.date) || !goalHasScheduledTime(goal) || eventGoalIds.has(goal.id)) return;
-    byDate.get(goal.date).push(calendarEventFromGoal(goal));
+    if (!goalHasScheduledTime(goal) || eventGoalIds.has(goal.id)) return;
+    goalScheduleSegments(goal, uniqueKeys).forEach(segment => {
+      byDate.get(segment.date).push(calendarEventFromGoal(goal, segment));
+    });
   });
 
   return byDate;
@@ -2091,6 +2112,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
                 <span>Время</span>
                 <div><input name="time" type="time" aria-label="Начало"><i>—</i><input name="endTime" type="time" aria-label="Окончание"></div>
               </div>
+            <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input name="endDate" type="date" aria-label="Дата окончания"></label>
             </div>
           </section>
           <label class="calendar-repeat-toggle is-disabled">
@@ -2111,6 +2133,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
     </section>`;
 
   const form = host.querySelector("#quickGoalComposerForm");
+  bindGoalScheduleHint(form);
   const areaSelect = form.elements.areaId;
   const error = form.querySelector(".calendar-composer-error");
   const titleField = form.elements.title;
@@ -2274,8 +2297,9 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
       error.textContent = "Укажите начало и окончание времени.";
       return;
     }
-    if (time && endTime && endTime <= time) {
-      error.textContent = "Окончание должно быть позже начала.";
+    const scheduleError = goalScheduleError({ date, time, endTime, endDate: String(data.endDate || "") });
+    if (scheduleError) {
+      error.textContent = scheduleError;
       return;
     }
 
@@ -2300,6 +2324,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
       date: goalDate,
       time: time || "без времени",
       endTime: endTime || "",
+      endDate: repeatedGoalEndDate({ date, endDate: String(data.endDate || "") }, goalDate),
       energy: "средняя",
       type: isRepeating ? "recurring" : "single",
       recurrenceGroupId,
@@ -3190,13 +3215,12 @@ function entityGoals(initiative, activity = null) {
 
 function scheduledGoalTime(goal) {
   if (!goalHasScheduledTime(goal)) return "";
-  const range = goal.endTime ? `${goal.time}-${goal.endTime}` : goal.time;
-  return `${formatDateKey(goal.date)}, ${range}`;
+  return `${formatDateKey(goal.date)}, ${goalScheduleRange(goal)}`;
 }
 
 function goalTimeRange(goal) {
   if (!goalHasScheduledTime(goal)) return "";
-  return goal.endTime ? `${goal.time}-${goal.endTime}` : goal.time;
+  return goalScheduleRange(goal);
 }
 
 function goalDateLabel(goal) {
@@ -3250,6 +3274,7 @@ function renderGoalWorkspace(goal, area) {
           <label><span>Дата</span><input id="goalDateEditor" type="date" value="${escapeHtml(goal.date || "")}"></label>
           <label><span>Начало</span><input id="goalTimeEditor" type="time" value="${goalHasScheduledTime(goal) ? escapeHtml(goal.time) : ""}"></label>
           <label><span>Окончание</span><input id="goalEndTimeEditor" type="time" value="${escapeHtml(goal.endTime || "")}"></label>
+          <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input id="goalEndDateEditor" type="date" min="${escapeHtml(goal.date || "")}" value="${escapeHtml(goal.endDate || "")}"></label>
         </div>
         <textarea class="goal-description" id="goalDescription" rows="1" placeholder="Описание">${escapeHtml(goal.description || "")}</textarea>
         <section class="goal-checklist-section">
@@ -3533,6 +3558,9 @@ function bindEntityGoalControls(root = document) {
   const dateEditor = select("#goalDateEditor");
   const timeEditor = select("#goalTimeEditor");
   const endTimeEditor = select("#goalEndTimeEditor");
+  const endDateEditor = select("#goalEndDateEditor");
+  const scheduleEditor = select(".object-schedule-editor");
+  if (scheduleEditor) bindGoalScheduleHint(scheduleEditor);
   const description = select("#goalDescription");
   let descriptionResizeFrame = 0;
   const resizeDescription = () => {
@@ -3557,21 +3585,22 @@ function bindEntityGoalControls(root = document) {
       resizeTitle();
     });
   }
-  dateEditor?.addEventListener("change", () => {
+  const saveSchedule = () => {
     if (!workspaceGoal) return;
-    workspaceGoal.date = dateEditor.value;
+    const schedule = {
+      date: dateEditor.value,
+      time: timeEditor.value || "без времени",
+      endTime: endTimeEditor.value,
+      endDate: endDateEditor.value
+    };
+    const error = goalScheduleError(schedule);
+    endDateEditor.setCustomValidity(error);
+    if (error) { endDateEditor.reportValidity(); return; }
+    Object.assign(workspaceGoal, schedule);
     scheduleUserDataSave();
-  });
-  timeEditor?.addEventListener("change", () => {
-    if (!workspaceGoal) return;
-    workspaceGoal.time = timeEditor.value || "без времени";
-    scheduleUserDataSave();
-  });
-  endTimeEditor?.addEventListener("change", () => {
-    if (!workspaceGoal) return;
-    workspaceGoal.endTime = endTimeEditor.value;
-    scheduleUserDataSave();
-  });
+    if (state.activeView === "calendar") renderCalendar();
+  };
+  [dateEditor, timeEditor, endTimeEditor, endDateEditor].forEach(field => field?.addEventListener("change", saveSchedule));
   description?.addEventListener("input", (event) => {
     if (!workspaceGoal) return;
     workspaceGoal.description = event.target.value;
@@ -4928,6 +4957,7 @@ function renderTodayInlineComposer(mode) {
               <span>Время</span>
               <div><input name="time" type="time" aria-label="Начало"><i>—</i><input name="endTime" type="time" aria-label="Окончание"></div>
             </div>
+            <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input name="endDate" type="date" aria-label="Дата окончания"></label>
           </div>
         </section>
       `}
@@ -4951,6 +4981,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
   if (!mode) return;
 
   const form = host.querySelector("#todayInlineComposerForm");
+  bindGoalScheduleHint(form);
   const isNote = mode === "note";
   const titleField = form.elements.title;
   const descriptionField = form.elements.description;
@@ -5100,8 +5131,9 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
       error.textContent = "Укажите начало и окончание времени.";
       return;
     }
-    if (time && endTime && endTime <= time) {
-      error.textContent = "Окончание должно быть позже начала.";
+    const scheduleError = goalScheduleError({ date, time, endTime, endDate: String(data.endDate || "") });
+    if (scheduleError) {
+      error.textContent = scheduleError;
       return;
     }
 
@@ -5114,6 +5146,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
       date,
       time: time || "без времени",
       endTime,
+      endDate: String(data.endDate || ""),
       energy: "средняя",
       type: "single",
       description: String(data.description || "").trim(),
