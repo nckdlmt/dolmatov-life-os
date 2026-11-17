@@ -1635,13 +1635,14 @@ function renderCalendar() {
   qs("#calendarTitle").textContent = formatCalendarTitle(days);
   const hours = Array.from({ length: 24 }, (_, hour) => hour);
   const grid = [
-    `<div class="calendar-grid" style="--days:${days.length}">`,
+    `<div class="calendar-timed-layout" style="--days:${days.length}"><div class="calendar-day-headers">`,
     `<div class="calendar-head" style="grid-column:1; grid-row:1"></div>`,
-    ...days.map((day, dayIndex) => `<div class="calendar-head ${day.isToday ? "is-today" : ""}" data-week-date="${day.key}" style="grid-column:${dayIndex + 2}; grid-row:1"><strong>${day.date}</strong><span>${day.label}</span></div>`)
+    ...days.map((day, dayIndex) => `<div class="calendar-head ${day.isToday ? "is-today" : ""}" data-week-date="${day.key}" style="grid-column:${dayIndex + 2}; grid-row:1"><strong>${day.date}</strong><span>${day.label}</span></div>`),
+    `</div><div class="calendar-time-scroll"><div class="calendar-grid">`
   ];
 
   hours.forEach((hour) => {
-    const gridRow = hour + 2;
+    const gridRow = hour + 1;
     grid.push(`<div class="calendar-time" data-hour="${hour}" style="grid-column:1; grid-row:${gridRow}">${String(hour).padStart(2, "0")}:00</div>`);
     days.forEach((day, dayIndex) => {
       grid.push(`<div class="calendar-slot" data-calendar-slot data-calendar-date="${day.key}" data-calendar-hour="${hour}" data-calendar-day-index="${dayIndex}" style="grid-column:${dayIndex + 2}; grid-row:${gridRow}"></div>`);
@@ -1660,38 +1661,29 @@ function renderCalendar() {
     grid.push(renderCurrentTimeLine(todayIndex));
   }
 
-  grid.push("</div>");
+  grid.push("</div></div></div>");
   qs("#calendarCanvas").innerHTML = grid.join("");
-  qs(".calendar-main").addEventListener("scroll", syncCalendarScrollPosition, { passive: true });
-  syncCalendarScrollPosition();
   bindCalendarEventActions();
   bindCalendarSlotSelection();
   scrollCalendarToHour(5);
 }
 
-function syncCalendarScrollPosition() {
-  const calendarMain = qs(".calendar-main");
-  const grid = calendarMain?.querySelector(".calendar-grid");
-  if (grid) grid.style.setProperty("--calendar-scroll-top", `${calendarMain.scrollTop}px`);
-}
-
 function scrollCalendarToHour(hour) {
   if (state.calendarMode === "week" || state.calendarMode === "year") return;
-  const calendarMain = qs(".calendar-main");
+  const calendarMain = qs(".calendar-time-scroll");
   const hourLabel = qs(`.calendar-time[data-hour="${hour}"]`);
   if (!calendarMain || !hourLabel) return;
 
   requestAnimationFrame(() => {
-    const headerHeight = qs(".calendar-head")?.offsetHeight || 54;
     calendarMain.scrollTo({
-      top: Math.max(0, hourLabel.offsetTop - headerHeight),
+      top: Math.max(0, hourLabel.getBoundingClientRect().top - calendarMain.getBoundingClientRect().top + calendarMain.scrollTop),
       behavior: "auto"
     });
   });
 }
 
 function eventGridStart(event) {
-  return Math.floor(event.start) + 2;
+  return Math.floor(event.start) + 1;
 }
 
 function renderCalendarEvent(event, dayIndex) {
@@ -1706,7 +1698,7 @@ function renderCalendarEvent(event, dayIndex) {
   const compact = duration < 1;
   const label = `${event.title} · ${formatEventRange(event)} / ${initiative.name}`;
   return `
-    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-start:${start}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
+    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
       <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <div class="calendar-event-body">
         <strong>${escapeHtml(event.title)}</strong>
@@ -1721,7 +1713,7 @@ function renderCurrentTimeLine(dayIndex) {
   const hour = now.getHours();
   const minuteRatio = now.getMinutes() / 60;
   return `
-    <div class="calendar-now-line" style="grid-column:${dayIndex + 2}; grid-row:${hour + 2}; --minute-ratio:${minuteRatio}">
+    <div class="calendar-now-line" style="grid-column:${dayIndex + 2}; grid-row:${hour + 1}; --minute-ratio:${minuteRatio}">
       <i></i>
     </div>
   `;
@@ -1762,7 +1754,7 @@ function calendarPointerTime(slot, clientY) {
 function renderCalendarDraftSelection(preview, selection, hourHeight) {
   const startHour = Math.floor(selection.start);
   preview.style.gridColumn = String(selection.dayIndex + 2);
-  preview.style.gridRow = String(startHour + 2);
+  preview.style.gridRow = String(startHour + 1);
   preview.style.height = `${Math.max(14, (selection.end - selection.start) * hourHeight)}px`;
   preview.style.transform = `translateY(${(selection.start - startHour) * hourHeight}px)`;
   preview.innerHTML = `

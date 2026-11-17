@@ -1790,14 +1790,44 @@ button.checkbox {
   height: calc(100vh - 64px);
 }
 
+.calendar-main:has(.calendar-timed-layout) {
+  overflow: hidden;
+}
+
+.calendar-main:has(.calendar-timed-layout) #calendarCanvas {
+  height: 100%;
+}
+
+.calendar-timed-layout {
+  --calendar-header-height: 54px;
+  display: grid;
+  grid-template-rows: var(--calendar-header-height) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.calendar-day-headers {
+  display: grid;
+  grid-template-columns: minmax(44px, 56px) repeat(var(--days), minmax(0, 1fr));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.calendar-time-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .calendar-grid {
   --calendar-hour-height: 44px;
-  --calendar-header-height: 54px;
   width: 100%;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(44px, 56px) repeat(var(--days), minmax(0, 1fr));
-  grid-template-rows: var(--calendar-header-height) repeat(24, var(--calendar-hour-height));
+  grid-template-rows: repeat(24, var(--calendar-hour-height));
   border: 0;
   border-radius: 12px;
   overflow: visible;
@@ -1943,7 +1973,6 @@ button.checkbox {
   line-height: 1.2;
   overflow: clip;
   contain: paint;
-  clip-path: inset(max(0px, calc(var(--calendar-scroll-top, 0px) - var(--event-start, 0) * var(--calendar-hour-height) - 1px)) 0 0);
   transition: filter 160ms var(--ease), opacity 160ms var(--ease), background 160ms var(--ease);
 }
 
@@ -2140,7 +2169,7 @@ button.checkbox {
 
 .calendar-event-body {
   position: sticky;
-  top: calc(var(--calendar-header-height) + 5px);
+  top: 5px;
   min-width: 0;
 }
 
