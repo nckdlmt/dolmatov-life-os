@@ -1,6 +1,10 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
 import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
-import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate } from "./goal-schedule.js?v=multi-day-1";
+import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate,
+  isRecurringGoal, recurrenceLabel, occursOnDate, defaultOccurrenceDate, goalOccurrence,
+  setOccurrenceDone, goalCalendarOccurrences, matchingGoalCopies, mergeGoalCopies, restoreMergedGoalCopies
+} from "./goal-schedule.js?v=recurring-1";
+import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=recurring-1";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer
@@ -331,6 +335,7 @@ const state = {
   selectedInitiativeId: null,
   selectedActivityId: null,
   openGoalId: null,
+  openGoalOccurrenceDate: null,
   openNoteId: null,
   todayComposerMode: null,
   openAreaId: null,
@@ -1200,7 +1205,7 @@ function escapeHtml(value = "") {
 }
 
 function goalTypeLabel(type) {
-  return "цель";
+  return type === "recurring" ? "повторяемая цель" : "цель";
 }
 
 function goalMarker(goal) {
@@ -1212,7 +1217,15 @@ function goalChecklist(goal) {
   return Array.isArray(goal?.checklist) ? goal.checklist : [];
 }
 
-function setGoalCompletion(goal, done) {
+function activeOccurrenceDate(goal) {
+  return (state.openGoalId === goal.id && state.openGoalOccurrenceDate) || defaultOccurrenceDate(goal, dateKey(getToday()));
+}
+
+function setGoalCompletion(goal, done, occurrenceDate = activeOccurrenceDate(goal)) {
+  if (isRecurringGoal(goal)) {
+    setOccurrenceDone(goal, occurrenceDate, done, dateKey(getToday()));
+    return;
+  }
   goal.done = done;
   goal.completedDate = done ? dateKey(getToday()) : null;
   if (done) {
@@ -1260,8 +1273,9 @@ function goalHasScheduledTime(goal) {
 function calendarEventFromGoal(goal, segment) {
   const initiative = findInitiativeOrDirectionBlock(goal.initiativeId);
   return {
-    id: `goal-event-${goal.id}-${segment.date}`,
+    id: `goal-event-${goal.id}-${goal.occurrenceDate || goal.date}-${segment.date}`,
     goalId: goal.id,
+    occurrenceDate: goal.occurrenceDate || "",
     ...segment,
     title: goal.title,
     areaId: goal.areaId,
@@ -1289,8 +1303,10 @@ function calendarEventsByDate(keys) {
   const eventGoalIds = new Set(state.events.filter((event) => event.goalId).map((event) => event.goalId));
   state.goals.forEach((goal) => {
     if (!goalHasScheduledTime(goal) || eventGoalIds.has(goal.id)) return;
-    goalScheduleSegments(goal, uniqueKeys).forEach(segment => {
-      byDate.get(segment.date).push(calendarEventFromGoal(goal, segment));
+    goalCalendarOccurrences(goal, uniqueKeys).forEach(occurrence => {
+      goalScheduleSegments(occurrence, uniqueKeys).forEach(segment => {
+        byDate.get(segment.date).push(calendarEventFromGoal(occurrence, segment));
+      });
     });
   });
 
@@ -1492,7 +1508,8 @@ function renderTimeline() {
 }
 
 function renderGoals() {
-  const todayGoals = state.goals.filter((goal) => goal.date === dateKey(getToday()));
+  const todayKey = dateKey(getToday());
+  const todayGoals = state.goals.filter((goal) => occursOnDate(goal, todayKey)).map(goal => goalOccurrence(goal, todayKey));
   if (!todayGoals.length) {
     qs("#goalList").innerHTML = `<div class="empty-inline">На сегодня целей нет</div>`;
     return;
@@ -1503,9 +1520,9 @@ function renderGoals() {
       const area = findArea(goal.areaId) || { name: "Направление" };
       const initiative = findInitiativeOrDirectionBlock(goal.initiativeId) || { name: "Без инициативы", area };
       return `
-        <article class="goal ${goal.done ? "done" : ""} ${goal.type === "group" ? "group" : ""}" data-goal="${index}" data-open-goal="${goal.id}" tabindex="0">
+        <article class="goal ${goal.done ? "done" : ""} ${goal.type === "group" ? "group" : ""}" data-goal="${index}" data-open-goal="${goal.id}" data-occurrence-date="${goal.occurrenceDate || ""}" tabindex="0">
           <div class="goal-title">
-            <button class="checkbox goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goalMarker(goal)}</button>
+            <button class="checkbox goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goalMarker(goal)}</button>
             <h3>${goal.title}</h3>
           </div>
           <div class="goal-meta">
@@ -1647,8 +1664,8 @@ function renderCalendarEvent(event, dayIndex) {
   const gridRow = eventGridStart(event);
   const gridSpan = eventGridSpan(event);
   return `
-    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}"` : ""} style="--event-color:${area.color}; grid-column:${gridColumn}; grid-row:${gridRow} / span ${gridSpan}; border-left-color:${area.color}">
-      <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
+    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; grid-column:${gridColumn}; grid-row:${gridRow} / span ${gridSpan}; border-left-color:${area.color}">
+      <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <div class="calendar-event-body">
         <strong>${event.title}</strong>
         <span>${formatEventRange(event)} / ${initiative.name}</span>
@@ -1798,8 +1815,10 @@ function closeCalendarEventPopover() {
 }
 
 function openCalendarEventPopover(goalId, anchor) {
-  const goal = state.goals.find((item) => item.id === goalId);
-  if (!goal || !anchor) return;
+  const template = state.goals.find((item) => item.id === goalId);
+  if (!template || !anchor) return;
+  state.openGoalOccurrenceDate = anchor.dataset.occurrenceDate || defaultOccurrenceDate(template, dateKey(getToday()));
+  const goal = goalOccurrence(template, state.openGoalOccurrenceDate);
   closeCalendarEventPopover();
   state.openNoteId = null;
   state.openGoalId = goalId;
@@ -1817,12 +1836,15 @@ function openCalendarEventPopover(goalId, anchor) {
   host.innerHTML = `
     <section class="calendar-event-popover" style="left:${left}px; top:${top}px; --module-color:${area?.color || "#a65d70"}" role="dialog" aria-label="Цель в календаре">
       <header class="calendar-event-popover-header">
-        <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
+        <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
         <button class="icon-button" type="button" data-close-calendar-event aria-label="Закрыть">×</button>
       </header>
       <div class="calendar-event-popover-body">
         <p class="object-editor-context">${escapeHtml(scope || "Без направления")}</p>
         <h3>${escapeHtml(goal.title)}</h3>
+        <p>${escapeHtml(scheduledGoalTime(goal))}</p>
+        ${isRecurringGoal(goal) ? `<p>${escapeHtml(recurrenceLabel(goal))} · Повторяемая цель</p>` : ""}
+        <button type="button" class="secondary-action small" data-edit-calendar-goal>${isRecurringGoal(goal) ? "Изменить серию" : "Изменить цель"}</button>
         <p class="calendar-event-popover-text">${escapeHtml(goal.description || "Описание")}</p>
         ${checklist.length ? `
           <div class="calendar-event-popover-checklist">
@@ -1837,6 +1859,11 @@ function openCalendarEventPopover(goalId, anchor) {
   `;
   document.body.append(host);
   host.querySelector("[data-close-calendar-event]").addEventListener("click", closeCalendarEventPopover);
+  host.querySelector("[data-edit-calendar-goal]").addEventListener("click", () => {
+    const occurrenceDate = state.openGoalOccurrenceDate;
+    activateView("today");
+    openGoalWorkspace(goalId, occurrenceDate);
+  });
   bindEntityGoalControls(host);
 }
 
@@ -1909,15 +1936,8 @@ function openCalendarGoalComposer(selection, preview) {
           <label><span>Инициатива</span><select name="initiativeId" required>${initialArea.initiatives.map((initiative) => `<option value="${initiative.id}">${escapeHtml(initiative.name)}</option>`).join("")}</select></label>
           <label class="calendar-composer-activity-field"><span>Активность</span><select name="activityId"></select></label>
         </div>
-        <label class="calendar-repeat-toggle">
-          <input name="repeat" type="checkbox">
-          <span>Повторять цель</span>
-        </label>
-        <div class="calendar-repeat-fields" hidden>
-          <label><span>Начало</span><input type="date" value="${selection.date}" readonly></label>
-          <label><span>Периодичность</span><select name="frequency"><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option></select></label>
-          <label><span>Повторять до</span><input name="repeatUntil" type="date" min="${selection.date}" value="${selection.date}"></label>
-        </div>
+        <input name="date" type="hidden" value="${selection.date}">
+        ${renderRecurrenceControls({date:selection.date})}
         <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
         <footer class="calendar-goal-composer-actions">
           <button class="secondary-action" type="button" data-close-calendar-goal>Отмена</button>
@@ -1931,9 +1951,7 @@ function openCalendarGoalComposer(selection, preview) {
   const initiativeSelect = form.elements.initiativeId;
   const activitySelect = form.elements.activityId;
   const activityField = form.querySelector(".calendar-composer-activity-field");
-  const repeatToggle = form.elements.repeat;
-  const repeatFields = form.querySelector(".calendar-repeat-fields");
-  const repeatUntil = form.elements.repeatUntil;
+  bindRecurrenceControls(form);
   const error = form.querySelector(".calendar-composer-error");
 
   const updateDraftPreview = () => {
@@ -1963,10 +1981,6 @@ function openCalendarGoalComposer(selection, preview) {
   areaSelect.addEventListener("change", updateInitiatives);
   initiativeSelect.addEventListener("change", updateActivities);
   form.elements.title.addEventListener("input", updateDraftPreview);
-  repeatToggle.addEventListener("change", () => {
-    repeatFields.hidden = !repeatToggle.checked;
-    repeatUntil.required = repeatToggle.checked;
-  });
   host.querySelectorAll("[data-close-calendar-goal]").forEach((button) => button.addEventListener("click", closeCalendarGoalComposer));
   host.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeCalendarGoalComposer();
@@ -1977,38 +1991,15 @@ function openCalendarGoalComposer(selection, preview) {
     error.textContent = "";
     const data = Object.fromEntries(new FormData(form).entries());
     const title = String(data.title || "").trim();
-    const isRepeating = repeatToggle.checked;
-    const endDate = isRepeating ? String(data.repeatUntil || "") : selection.date;
-    const dates = calendarGoalDates(selection.date, endDate, String(data.frequency || "daily"));
-    if (!title || !dates.length) {
-      error.textContent = !title ? "Введите название цели." : "Дата окончания должна быть не раньше даты начала.";
-      return;
-    }
-    if (dates.length > 1000) {
-      error.textContent = "Сократите период повторения до 1000 целей.";
-      return;
-    }
-
-    const recurrenceGroupId = isRepeating ? uid("recurrence") : null;
-    const goals = dates.map((date) => ({
-      id: uid("goal"),
-      title,
-      areaId: String(data.areaId),
-      initiativeId: String(data.initiativeId),
-      activityId: String(data.activityId || "") || null,
-      date,
-      time: startTime,
-      endTime,
-      energy: "средняя",
-      type: isRepeating ? "recurring" : "single",
-      recurrenceGroupId,
-      recurrenceRule: isRepeating ? { frequency: String(data.frequency), startDate: selection.date, endDate } : null,
-      description: "",
-      checklist: [],
-      done: false,
-      completedDate: null
-    }));
-    state.goals.unshift(...goals);
+    const recurrence = readRecurrence(form);
+    const repeatError = recurrenceError(recurrence,selection.date);
+    if (!title || repeatError) {error.textContent = repeatError || "Введите название цели.";return;}
+    state.goals.unshift({
+      id:uid("goal"), title, areaId:String(data.areaId), initiativeId:String(data.initiativeId),
+      activityId:String(data.activityId || "") || null, date:selection.date, time:startTime, endTime,
+      type:recurrence ? "recurring" : "single", recurrence, doneDates:[],
+      energy:"средняя", description:"", checklist:[], done:false, completedDate:null
+    });
     closeCalendarGoalComposer();
     refreshGoalViews();
   });
@@ -2115,14 +2106,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
             <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input name="endDate" type="date" aria-label="Дата окончания"></label>
             </div>
           </section>
-          <label class="calendar-repeat-toggle is-disabled">
-            <input name="repeat" type="checkbox" disabled>
-            <span>Повторять цель</span>
-          </label>
-          <div class="calendar-repeat-fields" hidden>
-            <label><span>Периодичность</span><select name="frequency"><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option></select></label>
-            <label><span>Повторять до</span><input name="repeatUntil" type="date"></label>
-          </div>
+          ${renderRecurrenceControls()}
         `}
         <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
         <footer class="calendar-goal-composer-actions">
@@ -2134,6 +2118,7 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
 
   const form = host.querySelector("#quickGoalComposerForm");
   bindGoalScheduleHint(form);
+  bindRecurrenceControls(form);
   const areaSelect = form.elements.areaId;
   const error = form.querySelector(".calendar-composer-error");
   const titleField = form.elements.title;
@@ -2190,20 +2175,13 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
   let activitySelect;
   let activityField;
   let dateInput;
-  let repeatToggle;
-  let repeatLabel;
-  let repeatFields;
-  let repeatUntil;
 
   if (!isNote) {
     initiativeSelect = form.elements.initiativeId;
     activitySelect = form.elements.activityId;
     activityField = form.querySelector(".calendar-composer-activity-field");
     dateInput = form.elements.date;
-    repeatToggle = form.elements.repeat;
-    repeatLabel = repeatToggle.closest(".calendar-repeat-toggle");
-    repeatFields = form.querySelector(".calendar-repeat-fields");
-    repeatUntil = form.elements.repeatUntil;
+
 
     const updateActivities = () => {
       const initiative = findInitiative(initiativeSelect.value);
@@ -2227,30 +2205,10 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
       updateActivities();
     };
 
-    const updateScheduleState = () => {
-      const hasDate = Boolean(dateInput.value);
-      repeatToggle.disabled = !hasDate;
-      repeatLabel.classList.toggle("is-disabled", !hasDate);
-      if (!hasDate && repeatToggle.checked) {
-        repeatToggle.checked = false;
-        repeatFields.hidden = true;
-        repeatUntil.required = false;
-      }
-      if (hasDate) {
-        repeatUntil.min = dateInput.value;
-        if (!repeatUntil.value || repeatUntil.value < dateInput.value) repeatUntil.value = dateInput.value;
-      }
-    };
-
     areaSelect.addEventListener("change", updateInitiatives);
     initiativeSelect.addEventListener("change", updateActivities);
-    dateInput.addEventListener("change", updateScheduleState);
-    repeatToggle.addEventListener("change", () => {
-      repeatFields.hidden = !repeatToggle.checked;
-      repeatUntil.required = repeatToggle.checked;
-    });
+
     updateInitiatives();
-    updateScheduleState();
   }
   host.querySelectorAll("[data-close-calendar-goal]").forEach((button) => button.addEventListener("click", closeCalendarGoalComposer));
   host.addEventListener("keydown", (event) => {
@@ -2284,7 +2242,6 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
     const date = String(data.date || "");
     const time = String(data.time || "");
     const endTime = String(data.endTime || "");
-    const isRepeating = repeatToggle.checked;
     if (!data.areaId) {
       error.textContent = "Выберите направление для цели.";
       return;
@@ -2303,38 +2260,15 @@ function openQuickGoalComposer(anchorButton, entryType = null) {
       return;
     }
 
-    const endDate = isRepeating ? String(data.repeatUntil || "") : date;
-    const dates = date ? (isRepeating ? calendarGoalDates(date, endDate, String(data.frequency || "daily")) : [date]) : [""];
-    if (!dates.length) {
-      error.textContent = "Дата окончания должна быть не раньше даты начала.";
-      return;
-    }
-    if (dates.length > 1000) {
-      error.textContent = "Сократите период повторения до 1000 целей.";
-      return;
-    }
-
-    const recurrenceGroupId = isRepeating ? uid("recurrence") : null;
-    const goals = dates.map((goalDate) => ({
-      id: uid("goal"),
-      title,
-      areaId: String(data.areaId),
-      initiativeId: String(data.initiativeId || "") || null,
-      activityId: String(data.activityId || "") || null,
-      date: goalDate,
-      time: time || "без времени",
-      endTime: endTime || "",
-      endDate: repeatedGoalEndDate({ date, endDate: String(data.endDate || "") }, goalDate),
-      energy: "средняя",
-      type: isRepeating ? "recurring" : "single",
-      recurrenceGroupId,
-      recurrenceRule: isRepeating ? { frequency: String(data.frequency), startDate: date, endDate } : null,
-      description: String(data.description || "").trim(),
-      checklist: checklistItems.map((item) => ({ ...item })),
-      done: false,
-      completedDate: null
-    }));
-    state.goals.unshift(...goals);
+    const recurrence = readRecurrence(form);
+    const repeatError = recurrenceError(recurrence,date);
+    if (repeatError) {error.textContent=repeatError;return;}
+    state.goals.unshift({
+      id:uid("goal"), title, areaId:String(data.areaId), initiativeId:String(data.initiativeId || "") || null,
+      activityId:String(data.activityId || "") || null, date, time:time || "без времени",endTime,
+      endDate:String(data.endDate || ""), type:recurrence ? "recurring" : "single", recurrence, doneDates:[],
+      energy:"средняя",description:String(data.description || "").trim(),checklist:checklistItems.map(item=>({...item})),done:false,completedDate:null
+    });
     closeCalendarGoalComposer();
     refreshGoalViews();
   });
@@ -2394,8 +2328,8 @@ function renderMonthEvent(event) {
   const area = findArea(event.areaId) || { color: "var(--accent)", name: "Направление" };
   const initiative = findInitiativeOrDirectionBlock(event.initiativeId) || { name: "Без инициативы", area };
   return `
-    <div class="month-event ${event.done ? "done" : ""}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}"` : ""} style="--event-color:${area.color}">
-      <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
+    <div class="month-event ${event.done ? "done" : ""}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}">
+      <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <strong>${event.title}</strong>
       <span>${formatEventRange(event)} / ${initiative.name}</span>
     </div>
@@ -3097,8 +3031,8 @@ function renderDirectionGoalBlock(block, extraClass = "") {
       <div class="direction-goal-progress"><span style="width:${progress}%"></span></div>
       <div class="direction-goal-items" data-goal-items="${block.id}" hidden>
         ${goals.map((goal) => `
-          <div class="direction-goal-item goal-row-open ${goal.done ? "done" : ""}" role="listitem" tabindex="0" data-open-goal="${goal.id}">
-            <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
+          <div class="direction-goal-item goal-row-open ${goal.done ? "done" : ""}" role="listitem" tabindex="0" data-open-goal="${goal.id}" data-occurrence-date="${goal.occurrenceDate || ""}">
+            <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
             <div class="goal-item-copy">
               <span class="initiative-goal-title">${goal.title}</span>
               <span class="goal-item-scope">${area?.name || ""}${goal.scope ? ` · ${goal.scope}` : ""}</span>
@@ -3224,11 +3158,12 @@ function goalTimeRange(goal) {
 }
 
 function goalDateLabel(goal) {
+  if (isRecurringGoal(goal)) return recurrenceLabel(goal);
   return /^\d{4}-\d{2}-\d{2}$/.test(goal?.date || "") ? goal.date.split("-").reverse().join(".") : "-";
 }
 
 function renderEntityGoals(goals) {
-  const activeGoals = goals.filter((goal) => !goal.done);
+  const activeGoals = goals.filter((goal) => !goal.done || isRecurringGoal(goal)).map(goal => goalOccurrence(goal,defaultOccurrenceDate(goal,dateKey(getToday()))));
   if (!activeGoals.length) return `<div class="empty-inline">Активных целей пока нет.</div>`;
 
   return `
@@ -3242,7 +3177,7 @@ function renderEntityGoals(goals) {
         .map(
           (goal) => `
             <div class="initiative-goal goal-row-open" role="listitem" tabindex="0" data-open-goal="${goal.id || ""}">
-              ${goal.id ? `<button class="goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" aria-label="Закрыть цель ${escapeHtml(goal.title)}"></button>` : `<span class="checkbox"></span>`}
+              ${goal.id ? `<button class="goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть выполнение" : "Закрыть цель"} ${escapeHtml(goal.title)}">${goal.done ? "✓" : ""}</button>` : `<span class="checkbox"></span>`}
               <span class="initiative-goal-title">${escapeHtml(goal.title)}</span>
               <time class="initiative-goal-date">${goalDateLabel(goal)}</time>
               <time class="initiative-goal-time">${goalTimeRange(goal) || "-"}</time>
@@ -3254,8 +3189,9 @@ function renderEntityGoals(goals) {
   `;
 }
 
-function renderGoalWorkspace(goal, area) {
-  if (!goal) return "";
+function renderGoalWorkspace(template, area) {
+  if (!template) return "";
+  const goal = goalOccurrence(template, activeOccurrenceDate(template));
   const checklist = goalChecklist(goal);
   const initiative = goal.initiativeId ? taxonomyInitiativeLocation(goal.initiativeId)?.initiative : null;
   const activity = goal.activityId ? taxonomyActivityLocation(goal.activityId)?.activity : null;
@@ -3263,19 +3199,23 @@ function renderGoalWorkspace(goal, area) {
   return `
     <article class="object-editor goal-workspace" id="goalWorkspace" aria-labelledby="goalWorkspaceTitle" style="--module-color:${area?.color || "#a65d70"}">
       <header class="object-editor-toolbar">
-        <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
-        <span>Цель</span>
+        <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
+        <span>${isRecurringGoal(goal) ? "Повторяемая цель" : "Цель"}</span>
         <button class="icon-button" type="button" data-close-goal-workspace aria-label="Закрыть редактор">×</button>
       </header>
       <div class="object-editor-body">
         <p class="object-editor-context">${escapeHtml(scope || "Без направления")}</p>
         <textarea class="object-title-editor" id="goalTitleEditor" rows="1" aria-label="Название цели">${escapeHtml(goal.title)}</textarea>
         <div class="object-schedule-editor">
-          <label><span>Дата</span><input id="goalDateEditor" type="date" value="${escapeHtml(goal.date || "")}"></label>
+          <label><span>${isRecurringGoal(goal) ? "Начало повторений" : "Дата"}</span><input id="goalDateEditor" type="date" value="${escapeHtml(template.date || "")}"></label>
           <label><span>Начало</span><input id="goalTimeEditor" type="time" value="${goalHasScheduledTime(goal) ? escapeHtml(goal.time) : ""}"></label>
           <label><span>Окончание</span><input id="goalEndTimeEditor" type="time" value="${escapeHtml(goal.endTime || "")}"></label>
-          <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input id="goalEndDateEditor" type="date" min="${escapeHtml(goal.date || "")}" value="${escapeHtml(goal.endDate || "")}"></label>
+          <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input id="goalEndDateEditor" type="date" min="${escapeHtml(template.date || "")}" value="${escapeHtml(template.endDate || "")}"></label>
         </div>
+        ${renderRecurrenceControls(template)}
+        ${isRecurringGoal(template) ? `<p class="goal-schedule-hint">Выполнение за ${goal.date.split("-").reverse().join(".")}. Название, время и пункты общие для всей серии.</p>` : ""}
+        ${isRecurringGoal(template) && matchingGoalCopies(state.goals, template).length > 1 ? `<button class="secondary-action" type="button" data-merge-goal-copies>Объединить одинаковые цели (${matchingGoalCopies(state.goals, template).length})</button>` : ""}
+        ${template.recurrenceMergeBackup?.length ? `<button class="secondary-action small" type="button" data-restore-goal-copies>Отменить объединение</button>` : ""}
         <textarea class="goal-description" id="goalDescription" rows="1" placeholder="Описание">${escapeHtml(goal.description || "")}</textarea>
         <section class="goal-checklist-section">
           <div class="goal-checklist" id="goalChecklist">
@@ -3331,7 +3271,7 @@ function renderArchivedGoalsPanel(area, entityName, goals) {
                 .map(
                   (goal) => `
                     <div class="archive-goal-row">
-                      ${goal.id ? `<button class="goal-toggle archive-goal-check" type="button" data-entity-goal-toggle="${goal.id}" aria-label="Вернуть цель ${escapeHtml(goal.title)}">✓</button>` : `<span class="archive-goal-check">✓</span>`}
+                      ${goal.id ? `<button class="goal-toggle archive-goal-check" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="Вернуть цель ${escapeHtml(goal.title)}">✓</button>` : `<span class="archive-goal-check">✓</span>`}
                       <span class="archive-goal-title">${escapeHtml(goal.title)}</span>
                       ${scheduledGoalTime(goal) ? `<time>${scheduledGoalTime(goal)}</time>` : ""}
                     </div>
@@ -3377,7 +3317,7 @@ function renderEntityCard(area, initiative, activity = null) {
   const entity = activity || initiative;
   const goals = entityGoals(initiative, activity);
   const todayKey = dateKey(getToday());
-  const activeToday = goals.filter((goal) => !goal.done && goal.date === todayKey);
+  const activeToday = goals.filter((goal) => occursOnDate(goal,todayKey) && !goalOccurrence(goal,todayKey).done);
   return `
     <section class="panel initiative-core-card">
       <div class="panel-header">
@@ -3554,6 +3494,39 @@ function bindEntityGoalControls(root = document) {
   selectAll("[data-close-goal-workspace]").forEach((button) => button.addEventListener("click", closeGoalWorkspace));
 
   const workspaceGoal = state.goals.find((goal) => goal.id === state.openGoalId);
+  if (workspaceGoal) bindRecurrenceControls(root, recurrence => {
+    const error = recurrenceError(recurrence,workspaceGoal.date);
+    let errorNode = select('[data-recurrence-editor-error]');
+    if (!errorNode) {
+      errorNode = document.createElement('p');
+      errorNode.className = 'calendar-composer-error';
+      errorNode.dataset.recurrenceEditorError = '';
+      errorNode.setAttribute('role','alert');
+      select('.goal-recurrence')?.after(errorNode);
+    }
+    errorNode.textContent = error;
+    if (error) return;
+    if (recurrence && !isRecurringGoal(workspaceGoal)) {
+      workspaceGoal.seriesConversionBackup = JSON.parse(JSON.stringify(workspaceGoal));
+      if (workspaceGoal.done) workspaceGoal.doneDates = [...new Set([...(workspaceGoal.doneDates || []),workspaceGoal.date])];
+    }
+    workspaceGoal.recurrence = recurrence;
+    workspaceGoal.type = recurrence ? 'recurring' : 'single';
+    workspaceGoal.done = false;
+    workspaceGoal.completedDate = null;
+    state.openGoalOccurrenceDate = defaultOccurrenceDate(workspaceGoal,dateKey(getToday()));
+    refreshGoalViews();
+  });
+  select('[data-merge-goal-copies]')?.addEventListener('click', () => {
+    state.goals = mergeGoalCopies(state.goals,workspaceGoal.id);
+    state.openGoalOccurrenceDate = null;
+    refreshGoalViews();
+  });
+  select('[data-restore-goal-copies]')?.addEventListener('click', () => {
+    state.goals = restoreMergedGoalCopies(state.goals,workspaceGoal.id);
+    state.openGoalOccurrenceDate = null;
+    refreshGoalViews();
+  });
   const titleEditor = select("#goalTitleEditor");
   const dateEditor = select("#goalDateEditor");
   const timeEditor = select("#goalTimeEditor");
@@ -3593,10 +3566,11 @@ function bindEntityGoalControls(root = document) {
       endTime: endTimeEditor.value,
       endDate: endDateEditor.value
     };
-    const error = goalScheduleError(schedule);
+    const error = goalScheduleError(schedule) || recurrenceError(workspaceGoal.recurrence,schedule.date);
     endDateEditor.setCustomValidity(error);
     if (error) { endDateEditor.reportValidity(); return; }
     Object.assign(workspaceGoal, schedule);
+    state.openGoalOccurrenceDate = defaultOccurrenceDate(workspaceGoal,dateKey(getToday()));
     scheduleUserDataSave();
     if (state.activeView === "calendar") renderCalendar();
   };
@@ -3620,6 +3594,16 @@ function bindEntityGoalControls(root = document) {
   selectAll("[data-goal-check-item]").forEach((input) => {
     input.addEventListener("change", () => {
       if (!workspaceGoal) return;
+      if (isRecurringGoal(workspaceGoal)) {
+        const date = activeOccurrenceDate(workspaceGoal);
+        workspaceGoal.checklistDoneByDate ||= {};
+        workspaceGoal.checklistDoneByDate[date] ||= {};
+        workspaceGoal.checklistDoneByDate[date][input.dataset.goalCheckItem] = input.checked;
+        const checklist = goalChecklist(goalOccurrence(workspaceGoal,date));
+        setGoalCompletion(workspaceGoal,checklist.length > 0 && checklist.every(item=>item.done),date);
+        refreshGoalViews();
+        return;
+      }
       const item = goalChecklist(workspaceGoal).find((entry) => entry.id === input.dataset.goalCheckItem);
       if (!item) return;
       item.done = input.checked;
@@ -4959,6 +4943,7 @@ function renderTodayInlineComposer(mode) {
             </div>
             <label class="goal-end-date-field"><span>Дата окончания · необязательно</span><input name="endDate" type="date" aria-label="Дата окончания"></label>
           </div>
+          ${renderRecurrenceControls()}
         </section>
       `}
       <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
@@ -4982,6 +4967,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
 
   const form = host.querySelector("#todayInlineComposerForm");
   bindGoalScheduleHint(form);
+  bindRecurrenceControls(form);
   const isNote = mode === "note";
   const titleField = form.elements.title;
   const descriptionField = form.elements.description;
@@ -5001,7 +4987,7 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
   }
 
   form.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.target.closest("dialog")) return;
     if (event.target === form.elements.checkItem) return;
     if (!event.target.matches('textarea, input[type="text"]')) return;
     event.preventDefault();
@@ -5137,6 +5123,9 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
       return;
     }
 
+    const recurrence = readRecurrence(form);
+    const repeatError = recurrenceError(recurrence,date);
+    if (repeatError) {error.textContent=repeatError;return;}
     const goal = {
       id: uid("goal"),
       title,
@@ -5148,7 +5137,8 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
       endTime,
       endDate: String(data.endDate || ""),
       energy: "средняя",
-      type: "single",
+      type: recurrence ? "recurring" : "single",
+      recurrence, doneDates:[],
       description: String(data.description || "").trim(),
       checklist: checklistItems.map((item) => ({ ...item, done: false })),
       done: false,
@@ -5235,12 +5225,13 @@ function renderGoalWorkspaceHost() {
   });
 }
 
-function openGoalWorkspace(goalId) {
+function openGoalWorkspace(goalId, occurrenceDate = null) {
   const goal = state.goals.find((item) => item.id === goalId);
   if (!goal) return;
   state.openNoteId = null;
   state.todayComposerMode = null;
   state.openGoalId = goalId;
+  state.openGoalOccurrenceDate = occurrenceDate || defaultOccurrenceDate(goal, dateKey(getToday()));
   renderGoalWorkspaceHost();
 }
 
@@ -5261,8 +5252,8 @@ function renderTransitGoals() {
     <div class="initiative-goal-table transit-goal-list" role="list">
       <div class="initiative-goal-table-head" aria-hidden="true"><span>Цель</span><span>Дата</span><span>Время</span></div>
       ${goals.map((goal) => `
-        <div class="initiative-goal goal-row-open transit-goal-row" role="listitem" tabindex="0" data-open-goal="${goal.id}">
-          <button class="goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" aria-label="Закрыть цель"></button>
+        <div class="initiative-goal goal-row-open transit-goal-row" role="listitem" tabindex="0" data-open-goal="${goal.id}" data-occurrence-date="${goal.occurrenceDate || ""}">
+          <button class="goal-toggle" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="Закрыть цель"></button>
           <span class="initiative-goal-title">${goal.title}</span>
           <span>${goalDateLabel(goal)}</span>
           <span>${goalTimeRange(goal) || "-"}</span>
@@ -5334,15 +5325,18 @@ function renderRadianceExtensions() {
 }
 
 function finishGoalWithAnimation(goal, source) {
-  if (goal.done) {
-    setGoalCompletion(goal, false);
+  const occurrenceDate = source.dataset.occurrenceDate || source.closest("[data-occurrence-date]")?.dataset.occurrenceDate || activeOccurrenceDate(goal);
+  if (goalOccurrence(goal, occurrenceDate).done) {
+    setGoalCompletion(goal, false, occurrenceDate);
+    closeCalendarEventPopover();
     refreshGoalViews();
     return;
   }
   const row = source.closest(".initiative-goal, .direction-goal-item, .archive-goal-row, .goal-item, .calendar-event");
   if (row) row.classList.add("goal-completing");
   window.setTimeout(() => {
-    setGoalCompletion(goal, true);
+    setGoalCompletion(goal, true, occurrenceDate);
+    closeCalendarEventPopover();
     if (state.openGoalId === goal.id) state.openGoalId = null;
     refreshGoalViews();
   }, 320);
@@ -5381,7 +5375,7 @@ document.addEventListener("click", (event) => {
     if (row.classList.contains("goal") && state.activeView !== "today") {
       openCalendarEventPopover(row.dataset.openGoal, row);
     } else {
-      openGoalWorkspace(row.dataset.openGoal);
+      openGoalWorkspace(row.dataset.openGoal, row.dataset.occurrenceDate);
     }
     return;
   }
@@ -5402,7 +5396,7 @@ document.addEventListener("keydown", (event) => {
   if (row.classList.contains("goal") && state.activeView !== "today") {
     openCalendarEventPopover(row.dataset.openGoal, row);
   } else {
-    openGoalWorkspace(row.dataset.openGoal);
+    openGoalWorkspace(row.dataset.openGoal, row.dataset.occurrenceDate);
   }
 });
 

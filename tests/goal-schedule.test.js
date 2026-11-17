@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate } from '../goal-schedule.js';
+import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate, goalCalendarOccurrences } from '../goal-schedule.js';
 
 const sleep = { id: 'sleep', date: '2027-01-10', time: '23:00', endTime: '07:00', title: 'Сон', initiativeId: 'sleep-container' };
 
@@ -45,7 +45,7 @@ test('calendar integration renders both parts with the same editable goal and co
   const source = readFileSync(new URL('../app.js',import.meta.url),'utf8');
   const functions = source.slice(source.indexOf('function calendarEventFromGoal('), source.indexOf('\nfunction ', source.indexOf('function calendarEventsByDate(') + 10));
   const state = {goals:[{...sleep,done:false}],events:[],recurringEvents:[]};
-  const ctx = vm.createContext({state,goalScheduleSegments,goalHasScheduledTime:g=>!!goalSchedule(g),findInitiativeOrDirectionBlock:()=>({name:'Сон'}),recurringEventsForDate:()=>[]});
+  const ctx = vm.createContext({state,goalScheduleSegments,goalCalendarOccurrences,goalHasScheduledTime:g=>!!goalSchedule(g),findInitiativeOrDirectionBlock:()=>({name:'Сон'}),recurringEventsForDate:()=>[]});
   vm.runInContext(functions,ctx);
   const events = vm.runInContext("calendarEventsByDate(['2027-01-10','2027-01-11'])",ctx);
   assert.equal(events.get('2027-01-10')[0].goalId,'sleep');

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build:vendor": "mkdir -p vendor && esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --minify --outfile=vendor/supabase.js",
-    "check": "node --check app.js && node --check cloud-sync.js && node --check taxonomy-drag.js",
+    "check": "node --check app.js && node --check cloud-sync.js && node --check taxonomy-drag.js && node --check goal-schedule.js && node --check recurrence-ui.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
