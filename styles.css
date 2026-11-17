@@ -37,6 +37,7 @@
   --sila: #df7772;
   --balance: #8dbf9b;
   --love: #a996d8;
+  --direction-tint: 7%;
   --green: #8dbf9b;
   --orange: #df7772;
   --red: #d84b42;
@@ -1882,7 +1883,7 @@ button.checkbox {
   border-left: 3px solid var(--draft-color, var(--accent));
   border-radius: 5px;
   padding: 5px 7px;
-  background: color-mix(in srgb, var(--draft-color, var(--accent)) 30%, var(--surface-solid));
+  background: color-mix(in srgb, var(--draft-color, var(--accent)) var(--direction-tint), var(--surface-solid));
   box-shadow: 0 8px 20px color-mix(in srgb, var(--draft-color, var(--accent)) 15%, transparent);
   color: var(--ink);
   font-size: 11px;
@@ -1935,7 +1936,7 @@ button.checkbox {
   border-left: 0;
   border-radius: 4px;
   padding: 5px 8px;
-  background: color-mix(in srgb, var(--event-color, var(--accent)) 34%, var(--surface-solid));
+  background: color-mix(in srgb, var(--event-color, var(--accent)) var(--direction-tint), var(--surface-solid));
   box-shadow: none;
   font-size: 11px;
   line-height: 1.2;
@@ -1967,7 +1968,7 @@ button.checkbox {
 }
 
 .calendar-event:hover {
-  filter: saturate(1.08) brightness(0.99);
+  filter: brightness(0.99);
 }
 
 .calendar-event.done:hover {
@@ -2079,7 +2080,7 @@ button.checkbox {
   min-width: 0;
   border-radius: 6px;
   padding: 6px 7px;
-  background: color-mix(in srgb, var(--event-color, var(--accent)) 28%, var(--surface-solid));
+  background: color-mix(in srgb, var(--event-color, var(--accent)) var(--direction-tint), var(--surface-solid));
   color: var(--ink);
   font-size: 11px;
   line-height: 1.2;
@@ -5514,7 +5515,7 @@ h3,
 .side-activity-button {
   border-radius: 8px;
   cursor: grab;
-  background: color-mix(in srgb, var(--surface-solid) 93%, var(--side-color));
+  background: color-mix(in srgb, var(--side-color) var(--direction-tint), var(--surface-solid));
   box-shadow: none;
 }
 
