@@ -2000,8 +2000,9 @@ function openCalendarEventPopover(goalId, anchor) {
   host.querySelector("[data-close-calendar-event]").addEventListener("click", closeCalendarEventPopover);
   host.querySelector("[data-edit-calendar-goal]").addEventListener("click", () => {
     const occurrenceDate = state.openGoalOccurrenceDate;
+    const returnTo = { view:'calendar', scrollTop:qs('.calendar-time-scroll')?.scrollTop || 0 };
     activateView("today");
-    openGoalWorkspace(goalId, occurrenceDate);
+    openGoalWorkspace(goalId, occurrenceDate, returnTo);
   });
   bindEntityGoalControls(host);
 }
@@ -3364,6 +3365,7 @@ function renderGoalWorkspace(template, area) {
   const scope = [area?.name, initiative?.name, activity?.name].filter(Boolean).join(" / ");
   return `
     <article class="object-editor goal-workspace" id="goalWorkspace" aria-labelledby="goalWorkspaceTitle" style="--module-color:${area?.color || "#a65d70"}">
+      <h2 class="sr-only" id="goalWorkspaceTitle">Редактор цели</h2>
       <header class="object-editor-toolbar">
         <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
         <span>${isRecurringGoal(goal) ? "Повторяемая цель" : "Цель"}</span>
@@ -3399,6 +3401,10 @@ function renderGoalWorkspace(template, area) {
           </form>
         </section>
       </div>
+      <footer class="goal-workspace-footer">
+        <p class="calendar-composer-error" data-goal-editor-error role="alert"></p>
+        <button class="primary-action" type="button" data-save-goal-workspace>Обновить</button>
+      </footer>
     </article>
   `;
 }
@@ -3600,6 +3606,38 @@ function bindThoughtControls(root = document) {
   });
 }
 
+function finishGoalWorkspace() {
+  const returnTo = state.goalEditorReturnTo;
+  state.openGoalId = null;
+  state.openGoalOccurrenceDate = null;
+  state.goalEditorReturnTo = null;
+  if (returnTo?.view === 'calendar') {
+    saveUserData();
+    activateView('calendar');
+    requestAnimationFrame(()=>{const scroll=qs('.calendar-time-scroll');if(scroll)scroll.scrollTop=returnTo.scrollTop;});
+  } else refreshGoalViews();
+}
+
+function saveGoalWorkspace(root) {
+  const goal = state.goals.find(item=>item.id===state.openGoalId);
+  if (!goal) return false;
+  const value = selector=>root.querySelector(selector)?.value || '';
+  const time=value('#goalTimeEditor'), endTime=value('#goalEndTimeEditor');
+  const recurrence = readRecurrence(root);
+  const update = { title:value('#goalTitleEditor').trim(), description:value('#goalDescription'),
+    date:value('#goalDateEditor'), time:time || 'без времени', endTime, endDate:value('#goalEndDateEditor'),
+    recurrence, type:recurrence ? 'recurring' : 'single' };
+  const error = !update.title ? 'Введите название цели.' : Boolean(time)!==Boolean(endTime) ? 'Укажите время начала и окончания.'
+    : goalScheduleError(update) || recurrenceError(recurrence,update.date);
+  const errorNode = root.querySelector('[data-goal-editor-error]');
+  if(errorNode) errorNode.textContent=error;
+  if (error) return false;
+  Object.assign(goal,update);
+  saveUserData();
+  finishGoalWorkspace();
+  return true;
+}
+
 function bindEntityGoalControls(root = document) {
   const select = (selector) => root.querySelector(selector);
   const selectAll = (selector) => [...root.querySelectorAll(selector)];
@@ -3653,16 +3691,20 @@ function bindEntityGoalControls(root = document) {
     refreshGoalViews();
   });
 
-  const closeGoalWorkspace = () => {
-    state.openGoalId = null;
-    refreshGoalViews();
-  };
-  selectAll("[data-close-goal-workspace]").forEach((button) => button.addEventListener("click", closeGoalWorkspace));
+  selectAll("[data-close-goal-workspace]").forEach((button) => button.addEventListener("click", finishGoalWorkspace));
+  select('[data-save-goal-workspace]')?.addEventListener('click',()=>saveGoalWorkspace(root));
+  select('#goalWorkspace')?.addEventListener('keydown',event=>{
+    if(event.key!=='Enter' || event.isComposing || event.target.closest('dialog, #goalChecklistForm')) return;
+    const target=event.target;
+    if(target.tagName==='BUTTON' || target.tagName==='SELECT' || (target.tagName==='INPUT' && target.type==='checkbox'))return;
+    if(event.shiftKey)return;
+    event.preventDefault();event.stopPropagation();saveGoalWorkspace(root);
+  });
 
   const workspaceGoal = state.goals.find((goal) => goal.id === state.openGoalId);
   if (workspaceGoal) bindRecurrenceControls(root, recurrence => {
     const error = recurrenceError(recurrence,workspaceGoal.date);
-    let errorNode = select('[data-recurrence-editor-error]');
+    let errorNode = select('[data-goal-editor-error], [data-recurrence-editor-error]');
     if (!errorNode) {
       errorNode = document.createElement('p');
       errorNode.className = 'calendar-composer-error';
@@ -3681,7 +3723,7 @@ function bindEntityGoalControls(root = document) {
     workspaceGoal.done = false;
     workspaceGoal.completedDate = null;
     state.openGoalOccurrenceDate = defaultOccurrenceDate(workspaceGoal,dateKey(getToday()));
-    refreshGoalViews();
+    scheduleUserDataSave();
   });
   select('[data-merge-goal-copies]')?.addEventListener('click', () => {
     state.goals = mergeGoalCopies(state.goals,workspaceGoal.id);
@@ -3719,8 +3761,7 @@ function bindEntityGoalControls(root = document) {
     resizeTitle();
     titleEditor.addEventListener("input", () => {
       if (!workspaceGoal) return;
-      workspaceGoal.title = titleEditor.value;
-      scheduleUserDataSave();
+      if(titleEditor.value.trim()) { workspaceGoal.title = titleEditor.value.trim();scheduleUserDataSave(); }
       resizeTitle();
     });
   }
@@ -3733,6 +3774,8 @@ function bindEntityGoalControls(root = document) {
       endDate: endDateEditor.value
     };
     const error = goalScheduleError(schedule) || recurrenceError(workspaceGoal.recurrence,schedule.date);
+    const errorNode=select('[data-goal-editor-error]');
+    if(errorNode)errorNode.textContent=error;
     endDateEditor.setCustomValidity(error);
     if (error) { endDateEditor.reportValidity(); return; }
     Object.assign(workspaceGoal, schedule);
@@ -5405,12 +5448,13 @@ function renderGoalWorkspaceHost() {
   });
 }
 
-function openGoalWorkspace(goalId, occurrenceDate = null) {
+function openGoalWorkspace(goalId, occurrenceDate = null, returnTo = null) {
   const goal = state.goals.find((item) => item.id === goalId);
   if (!goal) return;
   state.openNoteId = null;
   state.todayComposerMode = null;
   state.openGoalId = goalId;
+  state.goalEditorReturnTo = returnTo;
   state.openGoalOccurrenceDate = occurrenceDate || defaultOccurrenceDate(goal, dateKey(getToday()));
   renderGoalWorkspaceHost();
 }

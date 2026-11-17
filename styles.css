@@ -6030,6 +6030,34 @@ body.has-open-object .direction-block-list {
   padding: 24px 20px 36px;
 }
 
+.object-editor.goal-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.goal-workspace > .object-editor-toolbar { flex-shrink: 0; }
+.goal-workspace > .object-editor-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.goal-workspace > .object-editor-body > * { flex-shrink: 0; }
+.goal-workspace-footer {
+  flex-shrink: 0;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-solid);
+}
+.goal-workspace-footer [role="alert"] { margin: 0 0 10px; }
+.goal-workspace-footer [role="alert"]:empty { display: none; }
+.goal-workspace-footer .primary-action { width: 100%; }
+
 .object-title-editor {
   font-size: 24px;
   font-weight: 500;
