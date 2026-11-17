@@ -1662,9 +1662,17 @@ function renderCalendar() {
 
   grid.push("</div>");
   qs("#calendarCanvas").innerHTML = grid.join("");
+  qs(".calendar-main").addEventListener("scroll", syncCalendarScrollPosition, { passive: true });
+  syncCalendarScrollPosition();
   bindCalendarEventActions();
   bindCalendarSlotSelection();
   scrollCalendarToHour(5);
+}
+
+function syncCalendarScrollPosition() {
+  const calendarMain = qs(".calendar-main");
+  const grid = calendarMain?.querySelector(".calendar-grid");
+  if (grid) grid.style.setProperty("--calendar-scroll-top", `${calendarMain.scrollTop}px`);
 }
 
 function scrollCalendarToHour(hour) {
@@ -1698,7 +1706,7 @@ function renderCalendarEvent(event, dayIndex) {
   const compact = duration < 1;
   const label = `${event.title} · ${formatEventRange(event)} / ${initiative.name}`;
   return `
-    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
+    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-start:${start}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
       <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <div class="calendar-event-body">
         <strong>${escapeHtml(event.title)}</strong>

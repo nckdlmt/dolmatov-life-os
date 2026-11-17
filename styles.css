@@ -1792,11 +1792,12 @@ button.checkbox {
 
 .calendar-grid {
   --calendar-hour-height: 44px;
+  --calendar-header-height: 54px;
   width: 100%;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(44px, 56px) repeat(var(--days), minmax(0, 1fr));
-  grid-template-rows: 54px repeat(24, var(--calendar-hour-height));
+  grid-template-rows: var(--calendar-header-height) repeat(24, var(--calendar-hour-height));
   border: 0;
   border-radius: 12px;
   overflow: visible;
@@ -1811,7 +1812,7 @@ button.checkbox {
 }
 
 .calendar-head {
-  min-height: 54px;
+  min-height: var(--calendar-header-height);
   min-width: 0;
   padding: 8px 7px;
   display: grid;
@@ -1940,8 +1941,9 @@ button.checkbox {
   box-shadow: none;
   font-size: 11px;
   line-height: 1.2;
-  overflow: hidden;
+  overflow: clip;
   contain: paint;
+  clip-path: inset(max(0px, calc(var(--calendar-scroll-top, 0px) - var(--event-start, 0) * var(--calendar-hour-height) - 1px)) 0 0);
   transition: filter 160ms var(--ease), opacity 160ms var(--ease), background 160ms var(--ease);
 }
 
@@ -2137,6 +2139,8 @@ button.checkbox {
 }
 
 .calendar-event-body {
+  position: sticky;
+  top: calc(var(--calendar-header-height) + 5px);
   min-width: 0;
 }
 
