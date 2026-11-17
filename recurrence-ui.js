@@ -1,4 +1,4 @@
-import { isRecurringGoal, recurrenceSettings } from './goal-schedule.js?v=calendar-edit-1';
+import { isRecurringGoal, recurrenceSettings } from './goal-schedule.js?v=calendar-edit-2';
 
 const escape = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const weekdays = [[1,'Пн'],[2,'Вт'],[3,'Ср'],[4,'Чт'],[5,'Пт'],[6,'Сб'],[0,'Вс']];
@@ -39,7 +39,7 @@ export function readRecurrence(root) {
   const signature = rule => JSON.stringify([rule.frequency,rule.basis || 'scheduled',rule.unit || '',Number(rule.interval)||1,[...(rule.weekdays||[])].sort()]);
   const date=root.querySelector('[name="date"], #goalDateEditor')?.value;
   if (origin.rule && origin.date===date && signature(origin.rule)===signature(result)) {
-    for (const key of ['anchorDate','weekPhaseOffset']) if(origin.rule[key]!==undefined)result[key]=origin.rule[key];
+    for (const key of ['anchorDate','weekPhaseOffset','nextDate']) if(origin.rule[key]!==undefined)result[key]=origin.rule[key];
   }
   return result;
 }

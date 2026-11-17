@@ -1,4 +1,4 @@
-import { goalSchedule, goalOccurrence, isRecurringGoal, occursOnDate, recurrenceSettings } from './goal-schedule.js?v=calendar-edit-1';
+import { goalSchedule, goalOccurrence, isRecurringGoal, occursOnDate, recurrenceSettings, defaultOccurrenceDate } from './goal-schedule.js?v=calendar-edit-2';
 
 const DAY = 1440;
 const dateMinute = date => Date.parse(`${date}T00:00:00Z`) / 60000;
@@ -47,6 +47,7 @@ function shiftedSeries(goal, occurrenceDate, range, future) {
     ...dateState(goal,date => !future || date >= occurrenceDate,days) });
   if (goal.recurrence.until) updated.recurrence.until = shiftDate(goal.recurrence.until,days);
   const settings = recurrenceSettings(goal);
+  if (settings.basis === 'completion') updated.recurrence.nextDate = shiftDate(defaultOccurrenceDate(goal,occurrenceDate),days);
   if (days && settings.unit === 'week') {
     updated.recurrence = { ...updated.recurrence, frequency:'custom', unit:'week', interval:settings.interval,
       weekdays:settings.weekdays.map(day => ((day+days)%7+7)%7), weekPhaseOffset:(Number(goal.recurrence.weekPhaseOffset) || 0)+days };

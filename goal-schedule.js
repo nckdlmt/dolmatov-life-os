@@ -143,6 +143,7 @@ function nextScheduledDate(goal, after) {
 }
 
 function nextCompletionCandidate(goal) {
+  if (Number.isFinite(dayNumber(goal.recurrence.nextDate)) && !(goal.doneDates || []).includes(goal.recurrence.nextDate)) return goal.recurrence.nextDate;
   const completed=(goal.doneDates || []).map(date=>({date,on:goal.completionDates?.[date] || date})).sort((a,b)=>a.on.localeCompare(b.on)||a.date.localeCompare(b.date));
   if(!completed.length) return nextScheduledDate(goal,goal.date);
   const rule=recurrenceSettings(goal),last=completed.at(-1);

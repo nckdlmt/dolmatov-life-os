@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { editCalendarGoal, calendarGoalBounds, calendarRangeFromBounds, adjustCalendarBounds } from '../calendar-goal-edit.js';
-import { occursOnDate, defaultOccurrenceDate, goalCalendarOccurrences, goalScheduleSegments } from '../goal-schedule.js';
+import { occursOnDate, defaultOccurrenceDate, goalCalendarOccurrences, goalScheduleSegments, setOccurrenceDone } from '../goal-schedule.js';
 
 const breakfast = {id:'breakfast',title:'Завтрак и сборы',areaId:'physio',initiativeId:'food',activityId:'meal',
   date:'2027-01-13',time:'09:00',endTime:'10:00',recurrence:{frequency:'custom',unit:'week',interval:1,weekdays:[3,4,5,6]},
@@ -90,6 +90,15 @@ test('single goals preserve their identity, full multi-day duration and metadata
   const [goal]=edit(source,source.date,-1440);
   assert.equal(goal.id,source.id);assert.equal(goal.date,'2027-01-12');assert.equal(goal.endDate,'2027-01-15');
   assert.deepEqual(goal.checklist,source.checklist);
+});
+
+test('moving a completion-based series moves the pending event then resumes from actual completion',()=>{
+  const source={...breakfast,recurrence:{frequency:'custom',unit:'day',interval:2,basis:'completion'},doneDates:['2027-01-13'],completionDates:{'2027-01-13':'2027-01-14'}};
+  const [series]=edit(source,'2027-01-16',1440,'all');
+  assert.equal(occursOnDate(series,'2027-01-16'),false);
+  assert.equal(occursOnDate(series,'2027-01-17'),true);
+  setOccurrenceDone(series,'2027-01-17',true,'2027-01-18');
+  assert.equal(defaultOccurrenceDate(series,'2027-01-19'),'2027-01-20');
 });
 
 test('invalid scopes, stale occurrences, duplicate identities and invalid ranges do not mutate data',()=>{

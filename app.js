@@ -4,10 +4,10 @@ import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
 import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate,
   isRecurringGoal, recurrenceLabel, occursOnDate, defaultOccurrenceDate, goalOccurrence,
   setOccurrenceDone, goalCalendarOccurrences, matchingGoalCopies, mergeGoalCopies, restoreMergedGoalCopies
-} from "./goal-schedule.js?v=calendar-edit-1";
-import { editCalendarGoal } from "./calendar-goal-edit.js?v=calendar-edit-1";
-import { bindCalendarGoalGestures, consumeCalendarGestureClick } from "./calendar-goal-gestures.js?v=calendar-edit-1";
-import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=calendar-edit-1";
+} from "./goal-schedule.js?v=calendar-edit-2";
+import { editCalendarGoal } from "./calendar-goal-edit.js?v=calendar-edit-2";
+import { bindCalendarGoalGestures, consumeCalendarGestureClick } from "./calendar-goal-gestures.js?v=calendar-edit-2";
+import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=calendar-edit-2";
 import {
   canDropInitiativeOnDirection,
   canNestInitiativeInContainer

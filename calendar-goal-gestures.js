@@ -1,5 +1,5 @@
-import { calendarGoalBounds, calendarRangeFromBounds, adjustCalendarBounds } from './calendar-goal-edit.js?v=calendar-edit-1';
-import { goalScheduleSegments } from './goal-schedule.js?v=calendar-edit-1';
+import { calendarGoalBounds, calendarRangeFromBounds, adjustCalendarBounds } from './calendar-goal-edit.js?v=calendar-edit-2';
+import { goalScheduleSegments } from './goal-schedule.js?v=calendar-edit-2';
 
 let suppressClickUntil = 0;
 let cancelActive = null;
