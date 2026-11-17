@@ -6,6 +6,7 @@ import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegment
   setOccurrenceDone, goalCalendarOccurrences, matchingGoalCopies, mergeGoalCopies, restoreMergedGoalCopies
 } from "./goal-schedule.js?v=calendar-edit-2";
 import { editCalendarGoal } from "./calendar-goal-edit.js?v=calendar-edit-2";
+import { layoutCalendarEvents, calendarOverlapGeometry } from "./calendar-event-layout.js?v=calendar-overlap-1";
 import { bindCalendarGoalGestures, consumeCalendarGestureClick } from "./calendar-goal-gestures.js?v=calendar-edit-2";
 import { renderRecurrenceControls, bindRecurrenceControls, readRecurrence, recurrenceError } from "./recurrence-ui.js?v=calendar-edit-2";
 import {
@@ -1654,7 +1655,7 @@ function renderCalendar() {
 
   days.forEach((day, dayIndex) => {
     const dayEvents = eventsByDate.get(day.key) || [];
-    dayEvents.forEach((event) => {
+    layoutCalendarEvents(dayEvents).forEach((event) => {
       grid.push(renderCalendarEvent(event, dayIndex));
     });
   });
@@ -1746,9 +1747,12 @@ function renderCalendarEvent(event, dayIndex) {
   const duration = Math.max(1 / 60, Math.min(24, end) - start);
   const offset = start - Math.floor(start);
   const compact = duration < 1;
+  const columns = Math.max(1,event.layoutColumns || 1);
+  const column = event.layoutColumn || 0;
+  const geometry = calendarOverlapGeometry(columns,column);
   const label = `${event.title} · ${formatEventRange(event)} / ${initiative.name}`;
   return `
-    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
+    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""} ${columns>1 ? 'has-overlap' : ''}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-duration:${duration}; --event-offset:${offset}; --event-left:min(${geometry.inset}px, ${geometry.maxInset}%); --event-layer:${geometry.layer}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
       <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <div class="calendar-event-body">
         <strong>${escapeHtml(event.title)}</strong>

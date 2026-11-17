@@ -1961,15 +1961,17 @@ button.checkbox {
 
 .calendar-event {
   position: relative;
-  z-index: 3;
+  z-index: var(--event-layer, 3);
   display: block;
   align-content: start;
   align-self: start;
   top: calc(var(--event-offset, 0) * var(--calendar-hour-height) + 1px);
+  left: var(--event-left, 0%);
+  width: calc(100% - var(--event-left, 0%) - var(--event-inset, 4px) * 2);
   height: max(0px, calc(var(--event-duration, 1) * var(--calendar-hour-height) - 2px));
   min-width: 0;
   min-height: 0;
-  margin: 0 4px;
+  margin: 0 var(--event-inset, 4px);
   border-left: 0;
   border-radius: 4px;
   padding: 5px 8px;
@@ -1984,6 +1986,15 @@ button.checkbox {
 
 .calendar-event.is-compact {
   padding: 2px 8px;
+}
+
+.calendar-event.has-overlap {
+  --event-inset: 2px;
+  padding-inline: 4px;
+  border: 1px solid color-mix(in srgb, var(--event-color) 24%, var(--surface-solid));
+  border-left: 2px solid var(--event-color);
+  background: color-mix(in srgb, var(--event-color) var(--calendar-event-tint), var(--surface-solid));
+  box-shadow: -2px 0 5px #0000000c;
 }
 
 .calendar-event.is-compact .calendar-event-body span {
