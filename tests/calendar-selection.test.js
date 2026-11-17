@@ -54,7 +54,7 @@ function setup(t, mode = 'seven') {
   };
 }
 
-test('a short weekly click, including pointer jitter, stays available for day navigation', t => {
+test('a short weekly click, including pointer jitter, does not create a draft', t => {
   const h = setup(t);
   h.down(); h.move({ clientY: 445 }); h.up();
   assert.equal(h.click().defaultPrevented, false);

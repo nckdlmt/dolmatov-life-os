@@ -4179,6 +4179,34 @@ button.checkbox {
   transform: rotate(45deg);
 }
 
+/* Keep the controls visible while the fields grow or the keyboard opens. */
+#calendarGoalComposerForm {
+  top: var(--composer-top, 12px) !important;
+  left: var(--composer-left, 12px) !important;
+  right: auto;
+  bottom: auto;
+  width: min(460px, calc(100vw - 24px));
+  max-height: var(--composer-max-height, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.calendar-goal-composer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 3px;
+  margin: -3px;
+}
+
+#calendarGoalComposerForm > .calendar-goal-composer-actions {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+
 .calendar-goal-composer[data-side="right"]::before {
   left: -7px;
   border-width: 0 0 1px 1px;

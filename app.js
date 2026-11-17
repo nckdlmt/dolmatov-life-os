@@ -449,6 +449,7 @@ let userDataSaveTimer = null;
 let cloudSync = null;
 let uidSequence = 0;
 let activeCalendarDraftPreview = null;
+let calendarComposerPositionCleanup = null;
 let draggedTaxonomyEntity = null;
 let searchReturnFocus = null;
 let navigationReady = false;
@@ -1888,6 +1889,8 @@ function calendarGoalComposerHost() {
 }
 
 function closeCalendarGoalComposer() {
+  calendarComposerPositionCleanup?.();
+  calendarComposerPositionCleanup = null;
   const host = qs("#calendarGoalComposerHost");
   if (host) host.innerHTML = "";
   if (activeCalendarDraftPreview) activeCalendarDraftPreview.remove();
@@ -1969,6 +1972,12 @@ function calendarGoalDates(startKey, endKey, frequency) {
 function positionCalendarGoalComposer(form, anchorRect) {
   const margin = 12;
   const gap = 12;
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop || 0;
+  const viewportHeight = viewport?.height || window.innerHeight;
+  if (form.id === "calendarGoalComposerForm") {
+    form.style.setProperty("--composer-max-height", `${Math.max(0, viewportHeight - margin * 2)}px`);
+  }
   const width = form.offsetWidth;
   const height = form.offsetHeight;
   let side = "right";
@@ -1983,10 +1992,29 @@ function positionCalendarGoalComposer(form, anchorRect) {
     side = "over";
   }
 
-  const top = Math.max(margin, Math.min(anchorRect.top, window.innerHeight - height - margin));
+  const top = Math.max(viewportTop + margin, Math.min(anchorRect.top, viewportTop + viewportHeight - height - margin));
   form.style.left = `${Math.round(left)}px`;
   form.style.top = `${Math.round(top)}px`;
+  form.style.setProperty("--composer-top", form.style.top);
+  form.style.setProperty("--composer-left", form.style.left);
   form.dataset.side = side;
+}
+
+function keepCalendarGoalComposerInViewport(form, preview) {
+  calendarComposerPositionCleanup?.();
+  const update = () => positionCalendarGoalComposer(form, preview.getBoundingClientRect());
+  const observer = new ResizeObserver(update);
+  observer.observe(form);
+  window.addEventListener("resize", update);
+  window.visualViewport?.addEventListener("resize", update);
+  window.visualViewport?.addEventListener("scroll", update);
+  calendarComposerPositionCleanup = () => {
+    observer.disconnect();
+    window.removeEventListener("resize", update);
+    window.visualViewport?.removeEventListener("resize", update);
+    window.visualViewport?.removeEventListener("scroll", update);
+  };
+  update();
 }
 
 function openCalendarGoalComposer(selection, preview) {
@@ -2009,6 +2037,7 @@ function openCalendarGoalComposer(selection, preview) {
           </div>
           <button class="icon-button" type="button" data-close-calendar-goal aria-label="Закрыть">×</button>
         </header>
+        <div class="calendar-goal-composer-body">
         <div class="calendar-selection-summary">
           <strong>${escapeHtml(formatDateKey(selection.date))}</strong>
           <span>${startTime}-${endTime}</span>
@@ -2024,6 +2053,7 @@ function openCalendarGoalComposer(selection, preview) {
         <input name="date" type="hidden" value="${selection.date}">
         ${renderRecurrenceControls({date:selection.date})}
         <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
+        </div>
         <footer class="calendar-goal-composer-actions">
           <button class="secondary-action" type="button" data-close-calendar-goal>Отмена</button>
           <button class="primary-action" type="submit">Добавить</button>
@@ -2090,7 +2120,7 @@ function openCalendarGoalComposer(selection, preview) {
   });
 
   updateActivities();
-  positionCalendarGoalComposer(form, preview.getBoundingClientRect());
+  keepCalendarGoalComposerInViewport(form, preview);
   form.elements.title.focus();
 }
 
@@ -4743,7 +4773,7 @@ function bindNavigation() {
       key = event.target.closest('[data-month-date]')?.dataset.monthDate;
       nextMode = 'seven';
     } else if (state.calendarMode === 'seven') {
-      key = event.target.closest('[data-week-date]')?.dataset.weekDate || event.target.closest('[data-calendar-date]')?.dataset.calendarDate;
+      key = event.target.closest('[data-week-date]')?.dataset.weekDate;
       nextMode = 'day';
     }
     if (!key) return;
