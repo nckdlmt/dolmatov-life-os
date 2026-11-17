@@ -1652,23 +1652,23 @@ function eventGridStart(event) {
   return Math.floor(event.start) + 2;
 }
 
-function eventGridSpan(event) {
-  if (event.end === undefined) return 1;
-  return Math.max(1, Math.ceil(event.end) - Math.floor(event.start));
-}
-
 function renderCalendarEvent(event, dayIndex) {
   const area = findArea(event.areaId) || { color: "var(--accent)", name: "Направление" };
   const initiative = findInitiativeOrDirectionBlock(event.initiativeId) || { name: "Без инициативы", area };
   const gridColumn = dayIndex + 2;
   const gridRow = eventGridStart(event);
-  const gridSpan = eventGridSpan(event);
+  const start = event.start + (Number.isInteger(event.start) ? (event.minute || 0) / 60 : 0);
+  const end = event.end === undefined ? start + 1 : event.end + (Number.isInteger(event.end) ? (event.endMinute || 0) / 60 : 0);
+  const duration = Math.max(1 / 60, Math.min(24, end) - start);
+  const offset = start - Math.floor(start);
+  const compact = duration < 1;
+  const label = `${event.title} · ${formatEventRange(event)} / ${initiative.name}`;
   return `
-    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; grid-column:${gridColumn}; grid-row:${gridRow} / span ${gridSpan}; border-left-color:${area.color}">
+    <div class="calendar-event event-${event.type} ${event.done ? "done" : ""} ${compact ? "is-compact" : ""}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${event.goalId ? `data-calendar-goal-open="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} style="--event-color:${area.color}; --event-duration:${duration}; --event-offset:${offset}; grid-column:${gridColumn}; grid-row:${gridRow}; border-left-color:${area.color}">
       <button class="calendar-event-check" data-event-done="${event.id}" ${event.goalId ? `data-goal-id="${event.goalId}" data-occurrence-date="${event.occurrenceDate || ""}"` : ""} ${event.recurringId ? `data-recurring-id="${event.recurringId}" data-event-date="${event.date}"` : ""} aria-label="${event.done ? "Вернуть цель" : "Завершить цель"}">${event.done ? "✓" : ""}</button>
       <div class="calendar-event-body">
-        <strong>${event.title}</strong>
-        <span>${formatEventRange(event)} / ${initiative.name}</span>
+        <strong>${escapeHtml(event.title)}</strong>
+        <span>${escapeHtml(formatEventRange(event))} / ${escapeHtml(initiative.name)}</span>
       </div>
     </div>
   `;

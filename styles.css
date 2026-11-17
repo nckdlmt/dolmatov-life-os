@@ -1926,12 +1926,15 @@ button.checkbox {
   z-index: 3;
   display: block;
   align-content: start;
-  align-self: stretch;
+  align-self: start;
+  top: calc(var(--event-offset, 0) * var(--calendar-hour-height) + 1px);
+  height: max(0px, calc(var(--event-duration, 1) * var(--calendar-hour-height) - 2px));
+  min-width: 0;
   min-height: 0;
-  margin: 3px 4px;
+  margin: 0 4px;
   border-left: 0;
   border-radius: 4px;
-  padding: 7px 8px;
+  padding: 5px 8px;
   background: color-mix(in srgb, var(--event-color, var(--accent)) 34%, var(--surface-solid));
   box-shadow: none;
   font-size: 11px;
@@ -1939,6 +1942,20 @@ button.checkbox {
   overflow: hidden;
   contain: paint;
   transition: filter 160ms var(--ease), opacity 160ms var(--ease), background 160ms var(--ease);
+}
+
+.calendar-event.is-compact {
+  padding: 2px 8px;
+}
+
+.calendar-event.is-compact .calendar-event-body span {
+  display: none;
+}
+
+.calendar-event.is-compact .calendar-event-check {
+  top: 1px;
+  width: 16px;
+  height: 16px;
 }
 
 .calendar-event.done {
@@ -2125,6 +2142,9 @@ button.checkbox {
 .calendar-event strong,
 .calendar-event span {
   display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .calendar-event span {
