@@ -1,4 +1,5 @@
 import { createCloudSync } from "./cloud-sync.js?v=dolmatov-cloud-20261027-5";
+import { readNavigationState, saveNavigationState } from "./navigation-state.js?v=navigation-1";
 import { bindVoiceCapture } from "./voice-capture.js?v=dictation-2";
 import { goalSchedule, goalScheduleError, goalScheduleRange, goalScheduleSegments, repeatedGoalEndDate,
   isRecurringGoal, recurrenceLabel, occursOnDate, defaultOccurrenceDate, goalOccurrence,
@@ -450,6 +451,38 @@ let uidSequence = 0;
 let activeCalendarDraftPreview = null;
 let draggedTaxonomyEntity = null;
 let searchReturnFocus = null;
+let navigationReady = false;
+
+function rememberNavigation() {
+  if (!navigationReady) return;
+  try {
+    saveNavigationState(window.sessionStorage, state);
+  } catch {
+    // Access to sessionStorage itself can be disabled by the browser.
+  }
+}
+
+function restoreNavigation() {
+  try {
+    Object.assign(state, readNavigationState(window.sessionStorage));
+    if (state.activeView !== "initiatives") return;
+    const area = findArea(state.selectedAreaId);
+    if (!area) {
+      state.activeView = "today";
+      return;
+    }
+    const initiative = area.initiatives.find((item) => item.id === state.selectedInitiativeId);
+    const activity = initiative?.activities.find((item) => item.id === state.selectedActivityId);
+    state.selectedInitiativeId = initiative?.id || null;
+    state.selectedActivityId = activity?.id || null;
+    state.openAreaId = area.id;
+    if (!area.initiatives.some((item) => item.id === state.openInitiativeId)) state.openInitiativeId = null;
+  } catch {
+    // Keep the default screen when saved navigation is unavailable.
+  } finally {
+    navigationReady = true;
+  }
+}
 
 function uid(prefix = "item") {
   uidSequence += 1;
@@ -508,6 +541,7 @@ function loadSavedTheme() {
 }
 
 window.addEventListener("pagehide", () => {
+  rememberNavigation();
   if (userDataSaveTimer === null) return;
   window.clearTimeout(userDataSaveTimer);
   userDataSaveTimer = null;
@@ -3814,6 +3848,7 @@ function calendarStepDays() {
 }
 
 function updatePageHeader() {
+  rememberNavigation();
   const viewMeta = {
     today: { title: "Сегодня", eyebrow: "Дашборд дня" },
     initiatives: { title: "Направления", eyebrow: "Второй уровень меню" },
@@ -5427,8 +5462,10 @@ async function bootstrapDolmatovLifeOS() {
   const reconciledInitiativeAreas = reconcileInitiativeAreaReferences();
   if (clearAllGoalsOnce() || restoredUniqueDirection || restoredNetworkingInitiative || movedRequestedInitiatives || restoredSleepOrder || restoredConvertedInitiatives || reconciledInitiativeAreas) saveUserData();
 
+  restoreNavigation();
   render();
   renderRadianceExtensions();
+  activateView(state.activeView);
 }
 
 bootstrapDolmatovLifeOS();
