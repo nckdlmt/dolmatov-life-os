@@ -5025,6 +5025,7 @@ function renderTodayInlineComposer(mode) {
   const areaOptions = areas.map((area) => `<option value="${area.id}">${escapeHtml(area.name)}</option>`).join("");
   return `
     <form class="calendar-goal-composer quick-goal-composer today-inline-composer" id="todayInlineComposerForm" data-today-composer-form="${mode}" novalidate>
+      <div class="today-composer-body">
       <label class="calendar-composer-title-field">
         <textarea name="title" rows="1" autocomplete="off" placeholder="${isNote ? "Текст мысли" : "Название цели"}" required></textarea>
       </label>
@@ -5062,7 +5063,12 @@ function renderTodayInlineComposer(mode) {
           ${renderRecurrenceControls()}
         </section>
       `}
-      <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
+      </div>
+      <footer class="today-composer-footer">
+        <p class="calendar-composer-error" role="alert" aria-live="polite"></p>
+        <p class="today-composer-feedback" role="status" aria-live="polite"></p>
+        <button class="primary-action" type="submit">Добавить</button>
+      </footer>
     </form>`;
 }
 
@@ -5089,6 +5095,9 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
   const descriptionField = form.elements.description;
   const error = form.querySelector(".calendar-composer-error");
   const checklistItems = [];
+  form.addEventListener("input", () => {
+    form.querySelector(".today-composer-feedback").textContent = "";
+  });
 
   const autoResize = (field, maximumHeight) => {
     if (!field) return;
@@ -5104,8 +5113,8 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
 
   form.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.target.closest("dialog")) return;
-    if (event.target === form.elements.checkItem) return;
-    if (!event.target.matches('textarea, input[type="text"]')) return;
+    if (event.target === form.elements.checkItem && !event.metaKey && !event.ctrlKey) return;
+    if (!event.metaKey && !event.ctrlKey && !event.target.matches('textarea, input[type="text"], input[type="date"], input[type="time"]')) return;
     event.preventDefault();
     form.requestSubmit();
   });
@@ -5212,9 +5221,11 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
         activityId: keepSelectedScope ? scope.activityId || null : null
       };
       state.notes.unshift(note);
-      state.todayComposerMode = null;
-      state.openNoteId = note.id;
+      state.todayComposerMode = mode;
+      state.openNoteId = null;
+      state.openGoalId = null;
       refreshThoughtViews();
+      host.querySelector(".today-composer-feedback").textContent = "Мысль добавлена";
       return;
     }
 
@@ -5261,9 +5272,11 @@ function bindTodayWorkspaceStart(host, mode, scope = {}) {
       completedDate: null
     };
     state.goals.unshift(goal);
-    state.todayComposerMode = null;
-    state.openGoalId = goal.id;
+    state.todayComposerMode = mode;
+    state.openGoalId = null;
+    state.openNoteId = null;
     refreshGoalViews();
+    host.querySelector(".today-composer-feedback").textContent = "Цель добавлена";
   });
 
   autoResize(titleField, 144);
