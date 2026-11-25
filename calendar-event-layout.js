@@ -9,7 +9,31 @@ export function layoutCalendarEvents(events) {
   const result = new Array(events.length);
   let group = [], columnEnds = [], groupEnd = -Infinity;
   const flush = () => {
-    for (const entry of group) result[entry.index] = {...entry.event,layoutColumn:entry.column,layoutColumns:columnEnds.length};
+    // Keep nested backgrounds, but only put a label where a higher card cannot
+    // cover it. Each exposed interval owns a sticky label, so scrolling never
+    // pins the title underneath a later event. No scroll-time measurements.
+    const ranges = group.map(entry => {
+      const covering = group.filter(other => other.column > entry.column && other.start < entry.end && other.end > entry.start)
+        .sort((a,b) => a.start-b.start);
+      const visible = [];
+      let cursor = entry.start;
+      for (const other of covering) {
+        if (other.start > cursor) visible.push({start:cursor,end:Math.min(other.start,entry.end)});
+        cursor = Math.max(cursor,other.end);
+      }
+      if (cursor < entry.end) visible.push({start:cursor,end:entry.end});
+      // A half-hour slot fits one line at the calendar's smallest row height.
+      return visible.filter(range => range.end-range.start >= Math.min(.5,entry.end-entry.start)-1e-8);
+    });
+    // Identical/fully covered events have no exposed vertical interval. Give
+    // their labels separate horizontal space while backgrounds still overlap.
+    const labelMode = ranges.some(visible => !visible.length) ? 'lanes' : 'exposed';
+    group.forEach((entry,index) => {
+      const visible = labelMode === 'lanes' ? [{start:entry.start,end:entry.end}] : ranges[index];
+      result[entry.index] = {...entry.event,layoutColumn:entry.column,layoutColumns:columnEnds.length,
+        layoutLabelMode:labelMode,
+        layoutLabelRanges:visible.map(range => ({offset:range.start-entry.start,duration:range.end-range.start}))};
+    });
     group=[];columnEnds=[];groupEnd=-Infinity;
   };
   for (const entry of entries) {

@@ -2184,6 +2184,25 @@ button.checkbox {
   background: #ff4b45;
 }
 
+.calendar-event-label-range {
+  position: absolute;
+  top: calc(var(--label-offset, 0) * var(--calendar-hour-height));
+  left: 8px;
+  width: calc((100% - 16px) / var(--event-label-lanes, 1));
+  height: max(0px, calc(var(--label-duration, 1) * var(--calendar-hour-height) - 2px));
+  padding-block: 5px;
+  overflow: clip;
+}
+
+.calendar-event.has-overlap .calendar-event-label-range {
+  left: 4px;
+  width: calc((100% - 8px) / var(--event-label-lanes, 1));
+}
+
+.calendar-event-label-range.is-compact { padding-block: 2px; }
+.calendar-event-label-range.is-compact .calendar-event-body span { display: none; }
+.alt-mode .calendar-event-label-range { padding-right: 24px; }
+
 .calendar-event-body {
   position: sticky;
   top: 5px;

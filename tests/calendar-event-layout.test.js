@@ -52,6 +52,52 @@ test('same-start events place the longest first, independent of stored order',()
     assert.equal(result.find(e=>e.id==='short').layoutColumn,2);
   }
 });
+
+test('hackathon title stays below breakfast, in the exposed part of the same event',()=>{
+  const result=layoutCalendarEvents([event('hackathon',10,24),event('breakfast',10,11),event('evening',22,23),event('sleep',23,24)]);
+  const hackathon=result.find(e=>e.id==='hackathon');
+  assert.equal(hackathon.layoutLabelMode,'exposed');
+  assert.deepEqual(hackathon.layoutLabelRanges,[{offset:1,duration:11}]);
+  assert.equal(hackathon.start,10);
+  assert.equal(hackathon.end,24);
+});
+
+test('long event has readable labels before and after lunch, each bounded by the overlay',()=>{
+  const result=layoutCalendarEvents([event('work',9,19),event('lunch',12,13)]);
+  assert.deepEqual(result[0].layoutLabelRanges,[{offset:0,duration:3},{offset:4,duration:6}]);
+  assert.deepEqual(result[1].layoutLabelRanges,[{offset:0,duration:1}]);
+});
+
+test('fully coincident events reserve a separate text lane for every title',()=>{
+  for(const count of [2,3,4]) {
+    const result=layoutCalendarEvents(Array.from({length:count},(_,i)=>event(String(i),10,11)));
+    assert.ok(result.every(e=>e.layoutLabelMode==='lanes'));
+    assert.equal(new Set(result.map(e=>e.layoutColumn)).size,count);
+    assert.ok(result.every(e=>e.layoutLabelRanges.length===1));
+  }
+});
+
+test('no exposed label range intersects a higher card, including midnight continuations',()=>{
+  const cases=[
+    [event('hackathon',0,23,{continuesBefore:true}),event('sleep',0,7),event('prep',7,7.5),event('gym',7.5,9),event('routine',9,10),event('breakfast',10,11),event('evening',22,23)],
+    [event('a',9,10),event('b',9.5,11),event('c',10,12)],
+    [event('a',9,20),event('b',11,17),event('c',12,13),event('d',15,16)],
+    [event('short',10,10.25),event('long',10,11)]
+  ];
+  for(const source of cases) {
+    const result=layoutCalendarEvents(source);
+    for(const entry of result) {
+      assert.ok(entry.layoutLabelRanges.length>0);
+      for(const range of entry.layoutLabelRanges) {
+        const start=entry.start+range.offset,end=start+range.duration;
+        assert.ok(start>=entry.start && end<=entry.end);
+        if(entry.layoutLabelMode==='exposed') for(const other of result) {
+          if(other.layoutColumn>entry.layoutColumn) assert.ok(end<=other.start || start>=other.end,`${entry.id} label covered by ${other.id}`);
+        }
+      }
+    }
+  }
+});
 test('minute fields, fractional hours, midnight continuations and recurring identity are preserved',()=>{
   const sleep={id:'sleep',date:'2027-01-13',time:'23:00',endTime:'07:00'};
   const segments=goalScheduleSegments(sleep,['2027-01-13','2027-01-14']);
