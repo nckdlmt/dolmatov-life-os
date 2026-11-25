@@ -2186,6 +2186,7 @@ button.checkbox {
 
 .calendar-event-label-range {
   position: absolute;
+  pointer-events: none;
   top: calc(var(--label-offset, 0) * var(--calendar-hour-height));
   left: 8px;
   width: calc((100% - 16px) / var(--event-label-lanes, 1));
