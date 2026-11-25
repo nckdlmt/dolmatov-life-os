@@ -1355,6 +1355,32 @@ function eventsForDate(key) {
   return calendarEventsByDate([key]).get(key) || [];
 }
 
+function calendarUntimedGoalsByDate(keys) {
+  const uniqueKeys = [...new Set(keys)];
+  const byDate = new Map(uniqueKeys.map(key => [key, []]));
+  state.goals.forEach(goal => {
+    if (!goal.date || goalHasScheduledTime(goal)) return;
+    goalCalendarOccurrences(goal, uniqueKeys).forEach(occurrence => {
+      byDate.get(occurrence.date)?.push(occurrence);
+    });
+  });
+  return byDate;
+}
+
+function renderUntimedCalendarGoal(goal) {
+  const area = findArea(goal.areaId) || {color:'var(--accent)'};
+  const label = `${goal.title} · Без времени${goal.done ? ' · Выполнено' : ''}`;
+  return `<button type="button" class="calendar-untimed-goal ${goal.done ? 'done' : ''}" data-calendar-goal-open="${escapeHtml(goal.id)}" data-occurrence-date="${escapeHtml(goal.occurrenceDate || goal.date)}" style="--event-color:${area.color}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${escapeHtml(goal.title)}</button>`;
+}
+
+function renderUntimedCalendarStrip(days, goalsByDate) {
+  if (!days.some(day => goalsByDate.get(day.key)?.length)) return '';
+  return `<div class="calendar-untimed-strip" aria-label="Цели без времени">
+    <div class="calendar-untimed-caption">Без<br>времени</div>
+    ${days.map(day => `<div class="calendar-untimed-day" data-untimed-date="${day.key}">${(goalsByDate.get(day.key) || []).map(renderUntimedCalendarGoal).join('')}</div>`).join('')}
+  </div>`;
+}
+
 function renderSidebarContext() {
   const title = qs("#sideTitle");
   const container = qs("#sideInitiatives");
@@ -1636,13 +1662,14 @@ function renderCalendar() {
 
   const days = calendarVisibleDays();
   const eventsByDate = calendarEventsByDate(days.map((day) => day.key));
+  const untimedStrip = renderUntimedCalendarStrip(days, calendarUntimedGoalsByDate(days.map(day => day.key)));
   qs("#calendarTitle").textContent = formatCalendarTitle(days);
   const hours = Array.from({ length: 24 }, (_, hour) => hour);
   const grid = [
-    `<div class="calendar-timed-layout" style="--days:${days.length}"><div class="calendar-day-headers">`,
+    `<div class="calendar-timed-layout ${untimedStrip ? 'has-untimed-goals' : ''}" style="--days:${days.length}"><div class="calendar-day-headers">`,
     `<div class="calendar-head" style="grid-column:1; grid-row:1"></div>`,
     ...days.map((day, dayIndex) => `<div class="calendar-head ${day.isToday ? "is-today" : ""}" data-week-date="${day.key}" style="grid-column:${dayIndex + 2}; grid-row:1"><strong>${day.date}</strong><span>${day.label}</span></div>`),
-    `</div><div class="calendar-time-scroll"><div class="calendar-grid">`
+    `</div>${untimedStrip}<div class="calendar-time-scroll"><div class="calendar-grid">`
   ];
 
   hours.forEach((hour) => {
@@ -1976,13 +2003,14 @@ function openCalendarEventPopover(goalId, anchor) {
   const scope = [area?.name, initiative?.name, activity?.name].filter(Boolean).join(" / ");
   const checklist = goalChecklist(goal);
   const rect = anchor.getBoundingClientRect();
-  const width = 320;
-  const left = rect.right + width + 12 < window.innerWidth ? rect.right + 12 : Math.max(76, rect.left - width - 12);
+  const width = Math.min(320, window.innerWidth - 24);
+  const preferredLeft = rect.right + width + 12 < window.innerWidth ? rect.right + 12 : rect.left - width - 12;
+  const left = Math.max(12, Math.min(preferredLeft, window.innerWidth - width - 12));
   const top = Math.min(Math.max(16, rect.top), Math.max(16, window.innerHeight - 360));
   const host = document.createElement("div");
   host.id = "calendarEventPopoverHost";
   host.innerHTML = `
-    <section class="calendar-event-popover" style="left:${left}px; top:${top}px; --module-color:${area?.color || "#a65d70"}" role="dialog" aria-label="Цель в календаре">
+    <section class="calendar-event-popover" style="left:${left}px; top:${top}px; width:${width}px; --module-color:${area?.color || "#a65d70"}" role="dialog" aria-label="Цель в календаре">
       <header class="calendar-event-popover-header">
         <button class="goal-toggle ${goal.done ? "done" : ""}" type="button" data-entity-goal-toggle="${goal.id}" data-occurrence-date="${goal.occurrenceDate || defaultOccurrenceDate(goal,dateKey(getToday()))}" aria-label="${goal.done ? "Вернуть цель" : "Закрыть цель"}">${goal.done ? "✓" : ""}</button>
         <button class="icon-button" type="button" data-close-calendar-event aria-label="Закрыть">×</button>
@@ -1990,7 +2018,7 @@ function openCalendarEventPopover(goalId, anchor) {
       <div class="calendar-event-popover-body">
         <p class="object-editor-context">${escapeHtml(scope || "Без направления")}</p>
         <h3>${escapeHtml(goal.title)}</h3>
-        <p>${escapeHtml(scheduledGoalTime(goal))}</p>
+        <p>${escapeHtml(goalHasScheduledTime(goal) ? scheduledGoalTime(goal) : `${dateFromKey(goal.date).toLocaleDateString('ru-RU',{day:'numeric',month:'long'})} · Без времени`)}</p>
         ${isRecurringGoal(goal) ? `<p>${escapeHtml(recurrenceLabel(goal))} · Повторяемая цель</p>` : ""}
         <button type="button" class="secondary-action small" data-edit-calendar-goal>${isRecurringGoal(goal) ? "Изменить серию" : "Изменить цель"}</button>
         <p class="calendar-event-popover-text">${escapeHtml(goal.description || "Описание")}</p>
@@ -2473,7 +2501,8 @@ function renderMonthCalendar() {
     };
   });
   const eventsByDate = calendarEventsByDate(dayRecords.map((day) => day.key));
-  const days = dayRecords.map((day) => ({ ...day, events: eventsByDate.get(day.key) || [] }));
+  const untimedByDate = calendarUntimedGoalsByDate(dayRecords.map(day => day.key));
+  const days = dayRecords.map((day) => ({ ...day, events: eventsByDate.get(day.key) || [], untimed:untimedByDate.get(day.key) || [] }));
 
   qs("#calendarTitle").textContent = formatMonthYear(monthStart);
   qs("#calendarCanvas").innerHTML = `
@@ -2488,6 +2517,7 @@ function renderMonthCalendar() {
               <article data-month-date="${day.key}" class="month-day ${day.isCurrentMonth ? "" : "muted-month"} ${day.isToday ? "is-today" : ""}">
                 <div class="month-day-number">${day.date.getDate()}</div>
                 <div class="month-events">
+                  ${day.untimed.map(renderUntimedCalendarGoal).join('')}
                   ${day.events.map((event) => renderMonthEvent(event)).join("")}
                 </div>
               </article>
@@ -4866,7 +4896,7 @@ function bindNavigation() {
   });
   qs("#searchLayer").addEventListener("keydown", trapSearchFocus);
   qs('#calendarCanvas').addEventListener('click', (event) => {
-    if (event.target.closest('.calendar-event, .month-event, [data-event-done]')) return;
+    if (event.target.closest('.calendar-event, .month-event, .calendar-untimed-goal, [data-event-done]')) return;
     let key;
     let nextMode;
     if (state.calendarMode === 'year') {
@@ -5614,7 +5644,7 @@ document.addEventListener("click", (event) => {
     }
     return;
   }
-  const calendarEvent = event.target.closest(".calendar-event, .month-event");
+  const calendarEvent = event.target.closest(".calendar-event, .month-event, .calendar-untimed-goal");
   const calendarGoalId = calendarEvent?.dataset.calendarGoalOpen || calendarEvent?.querySelector("[data-goal-id]")?.dataset.goalId;
   if (calendarGoalId) {
     event.preventDefault();
