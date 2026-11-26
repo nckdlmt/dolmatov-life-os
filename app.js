@@ -4112,8 +4112,12 @@ function bindTaxonomyNameEditors(root = document) {
       input.value = entity.name;
       input.className = `taxonomy-name-editor${button.classList.contains("taxonomy-title-name") ? " taxonomy-title-editor" : ""}`;
       input.setAttribute("aria-label", "Изменить название");
+      // Keep the same footprint while editing, including wrapped titles.
+      const { width, height } = button.getBoundingClientRect();
+      input.style.width = `${width}px`;
+      input.style.height = `${height}px`;
       button.replaceWith(input);
-      input.focus();
+      input.focus({ preventScroll: true });
       input.select();
 
       let finished = false;

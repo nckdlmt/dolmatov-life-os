@@ -375,6 +375,8 @@ h3 {
 }
 
 .taxonomy-inline-name {
+  display: inline-block;
+  vertical-align: top;
   max-width: 100%;
   border: 0;
   border-bottom: 1px solid transparent;
@@ -402,8 +404,10 @@ h3 {
 }
 
 .taxonomy-name-editor {
-  width: min(320px, 100%);
-  min-width: 90px;
+  display: inline-block;
+  vertical-align: top;
+  max-width: 100%;
+  min-width: 0;
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, currentColor 35%, transparent);
   border-radius: 0;
@@ -414,10 +418,6 @@ h3 {
   font: inherit;
   font-weight: inherit;
   letter-spacing: 0;
-}
-
-.taxonomy-title-editor {
-  width: min(520px, 70vw);
 }
 
 .side-entity-line,
